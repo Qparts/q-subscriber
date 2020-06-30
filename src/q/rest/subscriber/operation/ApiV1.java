@@ -1,0 +1,718 @@
+package q.rest.subscriber.operation;
+
+import org.hibernate.internal.CoreMessageLogger;
+import q.rest.subscriber.dao.DAO;
+import q.rest.subscriber.filter.annotation.SubscriberJwt;
+import q.rest.subscriber.filter.annotation.UserJwt;
+import q.rest.subscriber.filter.annotation.UserSubscriberJwt;
+import q.rest.subscriber.filter.annotation.ValidApp;
+import q.rest.subscriber.helper.AppConstants;
+import q.rest.subscriber.helper.Helper;
+import q.rest.subscriber.helper.KeyConstant;
+import q.rest.subscriber.helper.InternalAppRequester;
+import q.rest.subscriber.model.*;
+import q.rest.subscriber.model.entity.*;
+import q.rest.subscriber.model.entity.role.general.GeneralActivity;
+import q.rest.subscriber.model.entity.role.general.GeneralRole;
+
+import javax.ejb.EJB;
+import javax.ws.rs.*;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.util.*;
+
+@Path("/api/v1/")
+@Consumes(MediaType.APPLICATION_JSON)
+@Produces(MediaType.APPLICATION_JSON)
+public class ApiV1 {
+
+    @EJB
+    private DAO dao;
+
+    @EJB
+    private AsyncService async;
+
+    @UserJwt
+    @PUT
+    @Path("company")
+    public Response updateCompany(Company company) {
+        Company co = dao.find(Company.class, company.getId());
+        company.setSubscribers(co.getSubscribers());//prevent password loss
+        dao.update(company);
+        return Response.status(200).entity(company).build();
+    }
+
+
+    @UserSubscriberJwt
+    @POST
+    @Path("additional-subscriber-request")
+    public Response addNewSubscriber(AddSubscriberModel model) {
+        verifyAvailability(model.getEmail(), model.getMobile());//returns 409
+        SignupRequest sr = new SignupRequest(model);
+        dao.persist(sr);
+        String code = createVerificationCode();
+        SubscriberVerification sv = new SubscriberVerification(sr, model.getCountryId() == 1 ? 'M' : 'E', code, model.getCompanyId());
+        dao.persist(sv);
+        if (model.getCountryId() == 1) {
+            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+            async.sendSms(smsModel);
+        } else {
+            String[] s = new String[]{model.getName(), sv.getVerificationCode()};
+            MessagingModel emailModel = new MessagingModel(null, model.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
+            async.sendEmail(emailModel);
+        }
+        Map<String, String> map = new HashMap<String, String>();
+        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+        return Response.status(200).entity(map).build();
+    }
+
+    @UserSubscriberJwt
+    @PUT
+    @Path("verify-additional-subscriber")
+    public Response verifyAdditionalSubscriber(Map<String, Object> map) {
+        String code = (String) map.get("code");
+        int companyId = (int) map.get("companyId");
+        Date date = Helper.addMinutes(new Date(), -60);
+        String sql = "select b from SubscriberVerification b " +
+                " where b.verificationCode = :value0 " +
+                " and b.created > :value1 " +
+                " and b.stage = :value2 " +
+                " and b.companyId = :value3";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 3, companyId);
+        verifyObjectFound(verification);
+        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
+        Subscriber subscriber = new Subscriber();
+        subscriber.setEmail(sr.getEmail());
+        subscriber.setMobile(sr.getMobile());
+        subscriber.setName(sr.getName());
+        subscriber.setCreated(new Date());
+        subscriber.setCreatedBy(sr.getCreatedBy());
+        subscriber.setEmailVerified(verification.getVerificationMode() == 'E');
+        subscriber.setMobileVerified(verification.getVerificationMode() == 'M');
+        subscriber.setAdmin(false);
+        subscriber.setPassword(sr.getPassword());
+        subscriber.setCompanyId(companyId);
+        //get general role id
+        //get admin subscriber and copy its role
+        Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
+        for (var role : admin.getRoles()) {
+            GeneralRole gr = dao.find(GeneralRole.class, role.getId());
+            subscriber.getRoles().add(gr);
+        }
+        //subscriber.setRoles(admin.getRoles());
+        dao.persist(subscriber);
+        dao.delete(verification);
+        sr.setStatus('C');
+        dao.update(sr);
+        return Response.status(200).entity(subscriber).build();
+    }
+
+    @ValidApp
+    @POST
+    @Path(value = "verify-signup")
+    public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        WebApp webApp = getWebAppFromAuthHeader(header);
+        String code = map.get("code");
+        Date date = Helper.addMinutes(new Date(), -60);
+        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1);
+        verifyObjectFound(verification);
+        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
+        verifyObjectFound(sr);
+        //create company
+        Map<String, Integer> planIds = getBasicPlanId();
+        int planId = planIds.get("planId");
+        int durationId = planIds.get("durationId");
+        int roleId = planIds.get("roleId");
+        GeneralRole role = dao.find(GeneralRole.class, roleId);
+        Company company = new Company(sr, verification.getVerificationMode(), planId, durationId, role);
+        dao.persist(company);
+        sr.setStatus('C');
+        dao.update(sr);
+        dao.delete(verification);
+        Subscriber subscriber = company.getSubscribers().iterator().next();
+        subscriber = dao.find(Subscriber.class, subscriber.getId());
+        verifyLogin(subscriber, subscriber.getEmail());
+        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        return Response.status(200).entity(loginObject).build();
+    }
+
+
+    @SubscriberJwt
+    @POST
+    @Path("request-verify")
+    public Response requestVerification(Map<String, Object> map) {
+        String method = (String) map.get("method");
+        int subscriberId = (int) map.get("subscriberId");
+        char mode = method.equals("email") ? 'E' : 'M';
+        Subscriber sub = dao.find(Subscriber.class, subscriberId);
+        String code = createVerificationCode();
+        SubscriberVerification sv = new SubscriberVerification(sub, mode, code);
+        dao.persist(sv);
+        if (mode == 'E') {
+            String[] s = new String[]{sub.getName(), sv.getVerificationCode()};
+            MessagingModel emailModel = new MessagingModel(null, sub.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
+            async.sendEmail(emailModel);
+        }
+        if (mode == 'M') {
+            MessagingModel smsModel = new MessagingModel(sub.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+            async.sendSms(smsModel);
+        }
+        return Response.status(200).build();
+    }
+
+    @SubscriberJwt
+    @PUT
+    @Path("verify")
+    public Response verifyMedium(Map<String, Object> map) {
+        String code = (String) map.get("code");
+        int subscriberId = (int) map.get("subscriberId");
+        Date date = Helper.addMinutes(new Date(), -60);
+        String sql = "select b from SubscriberVerification b " +
+                "where b.verificationCode = :value0 " +
+                "and b.created > :value1 " +
+                "and stage = :value2 " +
+                "and b.subscriberId = :value3";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 2, subscriberId);
+        verifyObjectFound(verification);
+        Subscriber sub = dao.find(Subscriber.class, subscriberId);
+        if (verification.getVerificationMode() == 'E') {
+            sub.setEmailVerified(true);
+        }
+        if (verification.getVerificationMode() == 'M') {
+            sub.setMobileVerified(true);
+        }
+        dao.update(sub);
+        dao.delete(verification);
+        return Response.status(200).entity(sub).build();
+    }
+
+
+    @ValidApp
+    @POST
+    @Path(value = "signup-request")
+    public Response signup(SignupModel sm) {
+        verifyAvailability(sm.getEmail(), sm.getMobile());//returns 409
+        SignupRequest signupRequest = new SignupRequest(sm);
+        dao.persist(signupRequest);
+        //generate code !
+        String code = createVerificationCode();
+        SubscriberVerification sv = new SubscriberVerification(signupRequest, sm.getCountryId() == 1 ? 'M' : 'E', code);
+        dao.persist(sv);
+        if (sm.getCountryId() == 1) {
+            MessagingModel smsModel = new MessagingModel(sm.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+            async.sendSms(smsModel);
+        } else {
+            String[] s = new String[]{sm.getName(), sv.getVerificationCode()};
+            MessagingModel emailModel = new MessagingModel(null, sm.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
+            async.sendEmail(emailModel);
+        }
+        return Response.status(200).build();
+    }
+
+
+    private String createVerificationCode() {
+        String code = "";
+        boolean available = false;
+        do {
+            code = String.valueOf(Helper.getRandomInteger(1000, 9999));
+            Date date = Helper.addMinutes(new Date(), -60);
+            String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created >= :value1";
+            List<SubscriberVerification> l = dao.getJPQLParams(SubscriberVerification.class, sql, code, date);
+            if (l.isEmpty()) {
+                available = true;
+            }
+        } while (!available);
+        return code;
+    }
+
+
+    @POST
+    @Path("branch")
+    @UserSubscriberJwt
+    public Response createBranch(Branch branch) {
+        branch.setCreated(new Date());
+        dao.persist(branch);
+        return Response.status(200).entity(branch).build();
+    }
+
+    @GET
+    @Path("company/{id}")
+    @UserSubscriberJwt
+    public Response getCompany(@PathParam(value = "id") int id) {
+        Company company = dao.find(Company.class, id);
+        if (company == null) {
+            throwError(404);
+        }
+        return Response.status(200).entity(company).build();
+    }
+
+    @POST
+    @Path("login")
+    @ValidApp
+    public Response login(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        WebApp webApp = this.getWebAppFromAuthHeader(header);
+        String password = Helper.cypher(map.get("password"));
+        String email = map.get("email").trim().toLowerCase();
+        Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
+        verifyLogin(subscriber, email);
+        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        return Response.ok().entity(loginObject).build();
+    }
+
+    @GET
+    @Path("last-login/subscriber/{id}")
+    @UserJwt
+    public Response getLastLogin(@PathParam(value = "id") int id) {
+        String sql = "select b.created from LoginAttempt b where b.subscriberId = :value0 order by b.created desc";
+        List<Date> dates = dao.getJPQLParamsMax(Date.class, sql, 1, id);
+        verifyObjectsNotEmpty(dates);
+        Map<String, Object> map = new HashMap<>();
+        map.put("lastLogin", dates.get(0));
+        return Response.ok().entity(map).build();
+    }
+
+    @SubscriberJwt
+    @POST
+    @Path("search-keyword")
+    public Response searchKeyword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
+        SearchKeyword sk = new SearchKeyword();
+        sk.setCompanyId((int) map.get("companyId"));
+        sk.setSubscriberId((int) map.get("subscriberId"));
+        sk.setQuery((String) map.get("query"));
+        sk.setCreated(new Date());
+        dao.persist(sk);
+        return Response.ok().build();
+    }
+
+
+    @UserJwt
+    @GET
+    @Path("search-activity/from/{from}/to/{to}")
+    public Response getVendorSearchKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong) {
+        try {
+            Helper h = new Helper();
+            List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong));
+            List<Map> kgs = new ArrayList<>();
+            for (Date date : dates) {
+                String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date)";
+                Number n = dao.findJPQLParams(Number.class, sql, date);
+                Map<String, Object> map = new HashMap<>();
+                map.put("count", n.intValue());
+                map.put("date", date.getTime());
+                kgs.add(map);
+            }
+            return Response.status(200).entity(kgs).build();
+        } catch (Exception ex) {
+            return Response.status(500).build();
+        }
+
+    }
+
+    @UserJwt
+    @GET
+    @Path("today-search/company")
+    public Response getLatestVendorSearchesGroup() {
+        Helper h = new Helper();
+        String dateString = h.getDateFormat(new Date(), "yyyy-MM-dd");
+        String sql = "select z.*, c.name from" +
+                " (select k.company_id, count(*) from sub_search_keyword k" +
+                " where k.created > '" + dateString + "'" +
+                " group by company_id order by count desc) z" +
+                " left join sub_company c on z.company_id = c.id";
+        List<Object> ss = dao.getNative(sql);
+        List<CompanySearchCount> csc = new ArrayList<>();
+        for (Object o : ss) {
+            if (o instanceof Object[]) {
+                Object[] objArray = (Object[]) o;
+                int companyId = ((Number) objArray[0]).intValue();
+                int count = ((Number) objArray[1]).intValue();
+                String name = ((String) objArray[2]);
+                CompanySearchCount sc = new CompanySearchCount(companyId, name, count);
+                csc.add(sc);
+            }
+        }
+        return Response.ok().entity(csc).build();
+    }
+
+
+    @GET
+    @Path("search/company/not-logged/days/{days}")
+    @UserJwt
+    public Response searchNotLogged(@PathParam(value = "days") int days) {
+        String sql = "select b.id from Company b where b.id in (" +
+                " select c.companyId from Subscriber c where c.id not in (" +
+                " select d.subscriberId from LoginAttempt d where d.success = :value0" +
+                " and d.created > :value1))";
+        Date date = Helper.addDays(new Date(), days * -1);
+        List<Integer> companyIds = dao.getJPQLParams(Integer.class, sql, true, date);
+        Map<String, Object> map = new HashMap<>();
+        map.put("companies", companyIds);
+        return Response.ok().entity(map).build();
+    }
+
+    @UserJwt
+    @GET
+    @Path("companies/integrated")
+    public Response getIntegratedCompanies() {
+        String sql = "select b.id from Company b where b.integrated = :value0 order by b.id";
+        List<Integer> ints = dao.getJPQLParams(Integer.class, sql, true);
+        Map<String, Object> map = new HashMap<>();
+        map.put("companies", ints);
+        return Response.ok().entity(map).build();
+    }
+
+    @GET
+    @Path("search/company/{query}")
+    @UserJwt
+    public Response search(@PathParam(value = "query") String query) {
+        query = "%" + query.toLowerCase().trim() + "%";
+        String sql = " select b.id from Company b " +
+                " where lower(b.name) like :value0 " +
+                " or lower(b.nameAr) like :value0 " +
+                " or b.id in (" +
+                " select c.companyId from Subscriber c where c.email like :value0 " +
+                " or c.mobile like :value0 or c.name like :value0)";
+        List<Integer> ids = dao.getJPQLParams(Integer.class, sql, query);
+        Map<String, Object> map = new HashMap<>();
+        map.put("companies", ids);
+        return Response.ok().entity(map).build();
+    }
+
+
+    @UserJwt
+    @GET
+    @Path("company-joined/from/{from}/to/{to}")
+    public Response getVendorsJoinedDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong) {
+        Helper h = new Helper();
+        Date toDate = new Date(toLong);
+        Date fromDate = new Date(fromLong);
+        List<Date> dates = h.getAllDatesBetween(fromDate, toDate);
+        List<CompaniesDateGroup> vdgs = new ArrayList<>();
+        for (Date date : dates) {
+            String sql = "select count(b) from Company b where cast(b.created as date) = cast(:value0 as date)";
+            Long daily = dao.findJPQLParams(Long.class, sql, date);
+            String sql2 = "select count(b) from Company b where cast(b.created as date) between cast(:value0 as date) and cast(:value1 as date)";
+            Long total = dao.findJPQLParams(Long.class, sql2, fromDate, date);
+            var vdg = new CompaniesDateGroup();
+            vdg.setDate(date);
+            vdg.setDaily(daily.intValue());
+            vdg.setTotal(total.intValue());
+            vdgs.add(vdg);
+        }
+        return Response.status(200).entity(vdgs).build();
+
+    }
+
+
+    private void updateSubscriptionStatus(Subscriber subscriber) {
+        Subscription activeSubscription = dao.findTwoConditions(Subscription.class, "companyId", "status", subscriber.getCompanyId(), 'A');
+        if (activeSubscription != null) {
+            if (activeSubscription.getEndDate().before(new Date())) {
+                activeSubscription.setStatus('E');
+                dao.update(activeSubscription);
+                //check if there is future make it active
+                String jpql = "select b from Subscription b where b.companyId = :value0 b.status = :value1 and b.startDate < :value2";
+                Subscription futureSubscription = dao.findJPQLParams(Subscription.class, jpql, subscriber.getCompanyId(), 'F', new Date());
+                if (futureSubscription != null) {
+                    futureSubscription.setStatus('A');
+                    dao.update(futureSubscription);
+                }
+            }
+        }
+    }
+
+
+    private LoginObject getLoginObject(Subscriber subscriber, int appCode) {
+        updateSubscriptionStatus(subscriber);
+        Company company = dao.find(Company.class, subscriber.getCompanyId());
+        String jwt = issueToken(subscriber.getId(), appCode);
+        return new LoginObject(company, subscriber, jwt);
+    }
+
+
+    private String issueToken(int userId, int appCode) {
+        try {
+            Map<String, Object> map = new HashMap<>();
+            map.put("typ", 'S');
+            map.put("appCode", appCode);
+            return KeyConstant.issueToken(userId, map);
+        } catch (Exception ex) {
+            throwError(500, "Token issuing error");
+            return null;
+        }
+    }
+
+
+    private void verifyLogin(Subscriber subscriber, String email) {
+        if (subscriber == null) {
+            async.createLoginAttempt(email, 0);
+            throwError(404, "Invalid credentials");
+        } else {
+            async.createLoginAttempt(email, subscriber.getId());
+        }
+    }
+
+    private void verifyObjectFound(Object object) {
+        if (object == null) {
+            throwError(404);
+        }
+    }
+
+    private void verifyObjectsNotEmpty(List list) {
+        if (list.isEmpty()) throwError(404);
+    }
+
+    @ValidApp
+    @POST
+    @Path("reset-password-verify")
+    public Response verifyPasswordReset(Map<String, String> map) {
+        String token = map.get("token");
+        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
+        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
+        verifyObjectFound(pr);
+        return Response.status(200).build();
+    }
+
+
+    @ValidApp
+    @PUT
+    @Path("reset-password")
+    public Response resetPassword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        WebApp webApp = getWebAppFromAuthHeader(header);
+        String token = map.get("token");
+        String password = map.get("newPassword");
+        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
+        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
+        verifyObjectFound(pr);
+        Subscriber subscriber = dao.find(Subscriber.class, pr.getSubscriberId());
+        subscriber.setPassword(Helper.cypher(password));
+        subscriber.setEmailVerified(true);
+        dao.update(subscriber);
+        pr.setStatus('V');
+        dao.update(pr);
+        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        return Response.status(200).entity(loginObject).build();
+    }
+
+
+    @ValidApp
+    @POST
+    @Path("password-reset-request")
+    public Response requestPasswordReset(Map<String, String> map) {
+        String method = map.get("method");
+        String sql = "select b from Subscriber b where ";
+        String value = "";
+        if (method.equals("email")) {
+            sql += "b.email = :value0";
+            value = map.get("email").trim().toLowerCase();
+        } else if (method.equals("sms")) {
+            sql += "b.mobile = :value0";
+            value = map.get("mobile");
+        }
+        Subscriber subscriber = dao.findJPQLParams(Subscriber.class, sql, value);
+        verifyObjectFound(subscriber);
+        String token = createPasswordResetObject(subscriber);
+        String[] values = new String[]{token, subscriber.getName()};
+        MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
+        async.sendEmail(emailModel);
+        return Response.status(200).build();
+    }
+
+
+    private String createPasswordResetObject(Subscriber subscriber) {
+        String code = "";
+        boolean available = false;
+        do {
+            code = Helper.getRandomString(20);
+            String sql = "select b from PasswordReset b where b.token = :value0 and b.expire >= :value1 and status =:value2";
+            List<PasswordReset> l = dao.getJPQLParams(PasswordReset.class, sql, code, new Date(), 'R');
+            if (l.isEmpty()) {
+                available = true;
+            }
+        } while (!available);
+
+        PasswordReset ev = new PasswordReset();
+        ev.setToken(code);
+        ev.setCreated(new Date());
+        ev.setSubscriberId(subscriber.getId());
+        ev.setExpire(Helper.addMinutes(ev.getCreated(), 60 * 24 * 14));
+        ev.setStatus('R');
+        dao.persist(ev);
+        return code;
+    }
+
+
+    private Map<String, Integer> getBasicPlanId() {
+        Response r = InternalAppRequester.getSecuredRequest(AppConstants.GET_BASIC_PLAN_ID);
+        if (r.getStatus() == 200) {
+            return r.readEntity(Map.class);
+        }
+        throwError(500);
+        return null;
+    }
+
+
+    private void verifyAvailability(String email, String mobile) {
+        String sql = "select b from Subscriber b where (b.mobile =:value0 or b.email =:value1)";
+        List<Subscriber> check = dao.getJPQLParams(Subscriber.class, sql, mobile, email);
+        if (!check.isEmpty()) {
+            throwError(409, "Subscriber already registered");
+        }
+
+        sql = "select b from SignupRequest b where (b.mobile =:value0 or b.email =:value1) and b.status = :value2 and b.created > :value3";
+        List<SignupRequest> check2 = dao.getJPQLParams(SignupRequest.class, sql, mobile, email, 'R', Helper.addMinutes(new Date(), -60));
+        if (!check2.isEmpty()) {
+            throwError(409, "Signup request already sent! try again in an hour");
+        }
+    }
+
+
+    @POST
+    @Path("general-activities")
+    @UserJwt
+    public Response createGeneralActivities(List<GeneralActivity> activities) {
+        activities.forEach(ga -> dao.persist(ga));
+        return Response.status(200).build();
+    }
+
+    @GET
+    @Path("general-activities")
+    @UserJwt
+    public Response getGeneralActivities() {
+        List<GeneralActivity> activities = dao.get(GeneralActivity.class);
+        return Response.status(200).entity(activities).build();
+    }
+
+    @GET
+    @Path("general-roles")
+    @UserJwt
+    public Response getGeneralRoles() {
+        List<GeneralRole> roles = dao.get(GeneralRole.class);
+        return Response.status(200).entity(roles).build();
+    }
+
+    @POST
+    @Path("general-role")
+    @UserJwt
+    public Response createGeneralRole(GeneralRole generalRole) {
+        dao.persist(generalRole);
+        return Response.status(200).entity(generalRole).build();
+    }
+
+    private int getPlanRoleId(int planId, String header) {
+        Response r = this.getSecuredRequest(AppConstants.getPlanGeneralRoleId(planId), header);
+        if (r.getStatus() == 200) {
+            Map<String, Integer> map = r.readEntity(Map.class);
+            return map.get("generalRoleId");
+        }
+        return 0;
+    }
+
+    @UserSubscriberJwt
+    @GET
+    @Path("qvm-invoice/{invoiceId}/company/{companyId}")
+    @Produces(MediaType.TEXT_HTML)
+    public Response getInvoice(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "invoiceId") int salesId, @PathParam(value = "companyId") int companyId){
+        Subscription subscription = dao.findTwoConditions(Subscription.class, "salesId", "companyId", salesId, companyId);
+        Company company = dao.find(Company.class, companyId);
+        verifyObjectFound(subscription);
+        verifyObjectFound(company);
+        MessagingModel mm = async.createInvoiceEmailModel(subscription, company, header);
+        Response r = InternalAppRequester.postSecuredRequest(AppConstants.POST_GENERATE_HTML, mm);
+        if(r.getStatus() == 200){
+            String body = r.readEntity(String.class);
+            return Response.ok().entity(body).build();
+        }
+        throwError(404);
+        return null;
+    }
+
+
+    @UserSubscriberJwt
+    @POST
+    @Path("subscribe")
+    public Response createSubscription(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, SubscribeModel model) {
+        Company company = dao.find(Company.class, model.getCompanyId());
+        Subscription futureSubscription = company.getFutureSubscription();
+        Subscription premium = new Subscription();
+        premium.setPlanId(model.getPlanId());
+        premium.setDurationId(model.getDurationId());
+        premium.setCreatedBySubscriber(model.getCreatedBySubscriber());
+        premium.setCreated(new Date());
+        premium.setSalesId(model.getSalesId());
+        if (futureSubscription == null) {
+            Subscription activeSubscription = company.getActiveSubscription();
+            if (activeSubscription.getStatus() == 'B') {
+                //upgrade to premium
+                premium.setStatus('A');
+                premium.setStartDate(new Date());
+                premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+            } else if (activeSubscription.getStatus() == 'A') {
+                //add a future subscription
+                premium.setStatus('F');
+                premium.setStartDate(activeSubscription.getEndDate());
+                premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+            }
+        } else {
+            //deal with it later
+            premium.setStatus('F');
+            premium.setStartDate(futureSubscription.getEndDate());
+            premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+        }
+        company.getSubscriptions().add(premium);
+        Subscriber admin = company.getAdminSubscriber();
+        int roleId = getPlanRoleId(model.getPlanId(), header);
+        GeneralRole gr = dao.find(GeneralRole.class, roleId);
+        admin.getRoles().clear();
+        admin.getRoles().add(gr);
+        dao.update(company);
+        Company updated = dao.find(Company.class, company.getId());
+        async.sendInvoiceEmail(premium, updated, header);
+        return Response.ok().entity(updated).build();
+    }
+
+
+    public void throwError(int code) {
+        throwError(code, null);
+    }
+
+    public void throwError(int code, String msg) {
+        throw new WebApplicationException(
+                Response.status(code).entity(msg).build()
+        );
+    }
+
+
+    private WebApp getWebAppFromAuthHeader(String authHeader) {
+        try {
+            String appSecret = authHeader.substring("Bearer".length()).trim();
+            return getWebAppFromSecret(appSecret);
+        } catch (Exception ex) {
+            throwError(401, "invalid secret");
+            return null;
+        }
+    }
+
+
+    // retrieves app object from app secret
+    private WebApp getWebAppFromSecret(String secret) throws Exception {
+        // verify web app secret
+        WebApp webApp = dao.findTwoConditions(WebApp.class, "appSecret", "active", secret, true);
+        if (webApp == null) {
+            throw new Exception();
+        }
+        return webApp;
+    }
+
+
+    public <T> Response getSecuredRequest(String link, String authHeader) {
+        Invocation.Builder b = ClientBuilder.newClient().target(link).request();
+        b.header(HttpHeaders.AUTHORIZATION, authHeader);
+        Response r = b.get();
+        return r;
+    }
+}

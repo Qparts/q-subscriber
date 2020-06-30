@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Can be compoiled with wildfly version 15.0.1.Final only-->
+<project basedir="." default="war" name="q-rest-subscriber">
+
+  <property name="debuglevel" value="source,lines,vars"/>
+  <property name="compiler.args.q-rest-subscriber" value="-encoding UTF-8 -source 11 -target 11 ${compiler.args}"/>
+
+  <path id="library.jboss.classpath">
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/annotation/api/main/jboss-annotations-api_1.3_spec-2.0.1.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/ejb/api/main/jboss-ejb-api_3.2_spec-2.0.0.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/enterprise/api/main/jakarta.enterprise.cdi-api-2.0.2.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/faces/api/main/jboss-jsf-api_2.3_spec-3.0.0.SP02.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/inject/api/main/jakarta.inject-api-1.0.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/mail/api/main/jakarta.mail-1.6.4.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/servlet/api/main/jboss-servlet-api_4.0_spec-2.0.0.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/servlet/jsp/api/main/jboss-jsp-api_2.3_spec-2.0.0.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/websocket/api/main/jboss-websocket-api_1.1_spec-2.0.0.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/javax/ws/rs/api/main/jboss-jaxrs-api_2.1_spec-2.0.1.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/hibernate/validator/main/hibernate-validator-6.0.14.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/jboss/resteasy/resteasy-jaxb-provider/main/resteasy-jaxb-provider-3.11.2.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/jboss/resteasy/resteasy-jaxrs/main/resteasy-client-3.11.2.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/jboss/resteasy/resteasy-client-microprofile//main/resteasy-client-microprofile-3.11.2.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/jboss/resteasy/resteasy-jaxrs/main/resteasy-jaxrs-3.11.2.Final.jar"/>
+    <pathelement location="/srv/wildfly/modules/system/layers/base/org/jboss/resteasy/resteasy-multipart-provider/main/resteasy-multipart-provider-3.11.2.Final.jar"/>
+  </path>
+
+  <path id="library.app.classpath">
+    <fileset dir="web/WEB-INF/lib" includes="*.jar"/>
+  </path>
+
+
+  <path id="q-rest-subscriber.classpath">
+    <pathelement location="build/classes"/>
+    <path refid="library.jboss.classpath"/>
+    <path refid="library.app.classpath"/>
+  </path>
+
+  <target name="init">
+    <delete dir="build"/> 
+    <mkdir dir="build/classes"/>
+    <mkdir dir="build/dist"/>
+    <copy includeemptydirs="false" todir="build/classes">
+      <fileset dir="src">
+        <exclude name="**/*.launch"/>
+        <exclude name="**/*.java"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target depends="init" name="build-project">
+    <echo message="${ant.project.name}: ${ant.file}"/>
+      <javac debug="true" encoding="utf-8" debuglevel="${debuglevel}" destdir="build/classes" includeantruntime="false">
+         <src path="src"/>
+         <classpath refid="q-rest-subscriber.classpath"/>
+       </javac>
+    </target>
+
+  <target name="war" depends="build-project">
+    <echo message="${ant.project.name}: ${ant.file}"/>    
+    <war destfile="build/dist/q-rest-subscriber.war" webxml="web/WEB-INF/web.xml">
+      <fileset dir="web"/>
+      <classes dir="build/classes"/>
+    </war>
+    <delete dir="build/classes"/>
+  </target>
+
+</project>

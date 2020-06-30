@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence" version="2.1">
+    <persistence-unit name="QSubscriberPU" transaction-type="JTA">
+        <jta-data-source>java:jboss/datasources/q_subscriber</jta-data-source>
+        <properties>
+            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.physical_naming_strategy" value="com.vladmihalcea.hibernate.type.util.CamelCaseToSnakeCaseNamingStrategy" />
+        </properties>
+    </persistence-unit>
+</persistence>
