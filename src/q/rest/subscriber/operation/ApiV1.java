@@ -429,16 +429,17 @@ public class ApiV1 {
     private LoginObject getLoginObject(Subscriber subscriber, int appCode) {
         updateSubscriptionStatus(subscriber);
         Company company = dao.find(Company.class, subscriber.getCompanyId());
-        String jwt = issueToken(subscriber.getId(), appCode);
+        String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
         return new LoginObject(company, subscriber, jwt);
     }
 
 
-    private String issueToken(int userId, int appCode) {
+    private String issueToken(int companyId, int userId, int appCode) {
         try {
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
+            map.put("comp", companyId);
             return KeyConstant.issueToken(userId, map);
         } catch (Exception ex) {
             throwError(500, "Token issuing error");
