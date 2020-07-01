@@ -7,11 +7,13 @@ public class Error {
     private int statusCode;
     private String statusDescription;
     private String errorMessage;
+    private Object errorLog;
 
-    public Error(int statusCode, String statusDescription, String errorMessage) {
+    public Error(int statusCode, String statusDescription, String errorMessage, Object errorLog) {
         this.statusCode = statusCode;
         this.statusDescription = statusDescription;
         this.errorMessage = errorMessage;
+        this.errorLog = errorLog;
     }
 
     public int getStatusCode() {
@@ -36,5 +38,13 @@ public class Error {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Object getErrorLog() {
+        return errorLog;
+    }
+
+    public void setErrorLog(Object errorLog) {
+        this.errorLog = errorLog;
     }
 }
