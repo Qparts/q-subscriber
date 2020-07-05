@@ -35,9 +35,6 @@ public class Company {
     private Set<Subscriber> subscribers = new HashSet<>();
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinColumn(name="company_id")
-    private Set<CompanyContact> contacts = new HashSet<>();
-    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    @JoinColumn(name="company_id")
     @OrderBy("startDate desc")
     private Set<Subscription> subscriptions = new HashSet<>();
 
@@ -235,11 +232,4 @@ public class Company {
         this.subscriptions = subscriptions;
     }
 
-    public Set<CompanyContact> getContacts() {
-        return contacts;
-    }
-
-    public void setContacts(Set<CompanyContact> contacts) {
-        this.contacts = contacts;
-    }
 }

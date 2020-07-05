@@ -13,6 +13,7 @@ public class CompanyContact {
     private int id;
     @Column(name="company_id")
     private int companyId;
+    @Column(name="branch_id")
     private Integer branchId;
     private String name;
     @Temporal(TemporalType.TIMESTAMP)

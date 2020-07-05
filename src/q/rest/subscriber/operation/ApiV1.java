@@ -229,6 +229,14 @@ public class ApiV1 {
         return code;
     }
 
+    @POST
+    @Path("contact")
+    @UserSubscriberJwt
+    public Response createContact(CompanyContact contact) {
+        contact.setCreated(new Date());
+        dao.persist(contact);
+        return Response.ok().entity(contact).build();
+    }
 
     @POST
     @Path("branch")
@@ -617,14 +625,14 @@ public class ApiV1 {
     @GET
     @Path("qvm-invoice/{invoiceId}/company/{companyId}")
     @Produces(MediaType.TEXT_HTML)
-    public Response getInvoice(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "invoiceId") int salesId, @PathParam(value = "companyId") int companyId){
+    public Response getInvoice(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "invoiceId") int salesId, @PathParam(value = "companyId") int companyId) {
         Subscription subscription = dao.findTwoConditions(Subscription.class, "salesId", "companyId", salesId, companyId);
         Company company = dao.find(Company.class, companyId);
         verifyObjectFound(subscription);
         verifyObjectFound(company);
         MessagingModel mm = async.createInvoiceEmailModel(subscription, company, header);
         Response r = InternalAppRequester.postSecuredRequest(AppConstants.POST_GENERATE_HTML, mm);
-        if(r.getStatus() == 200){
+        if (r.getStatus() == 200) {
             String body = r.readEntity(String.class);
             return Response.ok().entity(body).build();
         }

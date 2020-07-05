@@ -3,6 +3,8 @@ package q.rest.subscriber.model.entity;
 
 import javax.persistence.*;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name="sub_company_branch")
@@ -28,6 +30,9 @@ public class Branch {
     private double longitude;
     private double latitude;
     private int mapZoom;
+    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @JoinColumn(name="branch_id")
+    private Set<CompanyContact> contacts = new HashSet<>();
 
     public Branch() {
     }
@@ -158,5 +163,13 @@ public class Branch {
 
     public void setMapZoom(int mapZoom) {
         this.mapZoom = mapZoom;
+    }
+
+    public Set<CompanyContact> getContacts() {
+        return contacts;
+    }
+
+    public void setContacts(Set<CompanyContact> contacts) {
+        this.contacts = contacts;
     }
 }
