@@ -146,5 +146,12 @@ public class Helper {
         return "SR "+ new DecimalFormat("#.##").format(amount);
     }
 
+    public static int parseId(String query){
+        try{
+            return Integer.parseInt(query);
+        }catch (Exception ex){
+            return 0;
+        }
+    }
 
 }

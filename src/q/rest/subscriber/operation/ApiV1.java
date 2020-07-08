@@ -1,6 +1,5 @@
 package q.rest.subscriber.operation;
 
-import org.hibernate.internal.CoreMessageLogger;
 import q.rest.subscriber.dao.DAO;
 import q.rest.subscriber.filter.annotation.SubscriberJwt;
 import q.rest.subscriber.filter.annotation.UserJwt;
@@ -22,6 +21,7 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.time.Month;
 import java.util.*;
 
 @Path("/api/v1/")
@@ -229,6 +229,7 @@ public class ApiV1 {
         return code;
     }
 
+
     @POST
     @Path("contact")
     @UserSubscriberJwt
@@ -296,28 +297,98 @@ public class ApiV1 {
         return Response.ok().build();
     }
 
+    @UserJwt
+    @GET
+    @Path("company-summary-report/{id}")
+    public Response getCompanySummary(@PathParam(value = "id") int id){
+        String sql = "select b from SearchKeyword b where b.companyId =:value0 order by b.created desc";
+        List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50, id);
+        sql = "select count(*) from SearchKeyword b where b.companyId =:value0";
+        int totalSearches = dao.findJPQLParams(Number.class, sql, id).intValue();
+        sql = "select to_char(z.date, 'Mon') as mon," +
+                " extract(year from z.date) as yy," +
+                " count (z.*) as count" +
+                " from" +
+                " (select date_trunc('month', created) as date, count(*) as count" +
+                " from sub_search_keyword where company_id = "+id+" group by date_trunc('month', created) order by date desc limit 6)z order by z.date;";
+        List<Object> ss = dao.getNative(sql);
+        List<MonthlySearches> monthly = new ArrayList<>();
+        for (Object o : ss) {
+            if (o instanceof Object[]) {
+                Object[] objArray = (Object[]) o;
+                String month = objArray[0].toString();
+                int year = ((Number) objArray[1]).intValue();
+                int count = ((Number) objArray[2]).intValue();
+                MonthlySearches ms = new MonthlySearches(month, year, count);
+                monthly.add(ms);
+            }
+        }
+        SubscriberSummary summary = new SubscriberSummary();
+        summary.setMonthlySearches(monthly);
+        summary.setTopKeywords(kwds);
+        summary.setTotalSearches(totalSearches);
+        return Response.ok().entity(summary).build();
+    }
+
+    @UserJwt
+    @GET
+    @Path("summary-report")
+    public Response getHomeSummary() {
+        String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(now() as date)";
+        int searchKeywordsToday = dao.findJPQLParams(Number.class, sql).intValue();
+        sql = "select count(*) from Company c";
+        int totalCompanies = dao.findJPQLParams(Number.class, sql).intValue();
+        sql = "select count(*) from Company c where c.id in (select c.companyId from SearchKeyword c where c.created > :value0)";
+        int activeCompanies = dao.findJPQLParams(Number.class, sql, Helper.addDays(new Date(), -5)).intValue();
+        sql = "select b from SearchKeyword b order by b.created desc";
+        List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql , 50);
+        sql = "select b.id from Company b order by b.created desc";
+        List<Integer> topCompaniesIds = dao.getJPQLParamsMax(Integer.class, sql , 10);
+        sql = "select to_char(z.date, 'Mon') as mon," +
+                " extract(year from z.date) as yy," +
+                " count (z.*) as count" +
+                " from" +
+                " (select date_trunc('month', created) as date, count(*) as count" +
+                " from sub_search_keyword GROUP BY date_trunc('month', created) order by date desc limit 6)z order by z.date;";
+        List<Object> ss = dao.getNative(sql);
+        List<MonthlySearches> monthly = new ArrayList<>();
+        for (Object o : ss) {
+            if (o instanceof Object[]) {
+                Object[] objArray = (Object[]) o;
+                String month = objArray[0].toString();
+                int year = ((Number) objArray[1]).intValue();
+                int count = ((Number) objArray[2]).intValue();
+                MonthlySearches ms = new MonthlySearches(month, year, count);
+                monthly.add(ms);
+            }
+        }
+
+        SubscriberSummary summary = new SubscriberSummary();
+        summary.setSearchesToday(searchKeywordsToday);
+        summary.setTotalCompanies(totalCompanies);
+        summary.setActiveCompanies(activeCompanies);
+        summary.setTopKeywords(kwds);
+        summary.setTopCompanies(topCompaniesIds);
+        summary.setMonthlySearches(monthly);
+        return Response.ok().entity(summary).build();
+    }
 
     @UserJwt
     @GET
     @Path("search-activity/from/{from}/to/{to}")
     public Response getVendorSearchKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong) {
-        try {
-            Helper h = new Helper();
-            List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong));
-            List<Map> kgs = new ArrayList<>();
-            for (Date date : dates) {
-                String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date)";
-                Number n = dao.findJPQLParams(Number.class, sql, date);
-                Map<String, Object> map = new HashMap<>();
-                map.put("count", n.intValue());
-                map.put("date", date.getTime());
-                kgs.add(map);
-            }
-            return Response.status(200).entity(kgs).build();
-        } catch (Exception ex) {
-            return Response.status(500).build();
+        Helper h = new Helper();
+        List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong));
+        List<Map> kgs = new ArrayList<>();
+        for (Date date : dates) {
+            String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date)";
+            Number n = dao.findJPQLParams(Number.class, sql, date);
+            Map<String, Object> map = new HashMap<>();
+            map.put("count", n.intValue());
+            map.put("date", date.getTime());
+            kgs.add(map);
         }
-
+        return Response.status(200).entity(kgs).build();
     }
 
     @UserJwt
@@ -346,13 +417,24 @@ public class ApiV1 {
         return Response.ok().entity(csc).build();
     }
 
+    @GET
+    @Path("companies/all")
+    @UserJwt
+    public Response getAllCompanies(){
+        String sql = "select b.id from Company b order by b.id desc";
+        List<Integer> ids = dao.getJPQLParams(Integer.class, sql);
+        Map<String, Object> map = new HashMap<>();
+        map.put("companies", ids);
+        return Response.ok().entity(map).build();
+    }
+
 
     @GET
     @Path("search/company/not-logged/days/{days}")
     @UserJwt
     public Response searchNotLogged(@PathParam(value = "days") int days) {
-        String sql = "select b.id from Company b where b.id in (" +
-                " select c.companyId from Subscriber c where c.id not in (" +
+        String sql = "select b.id from Company b where b.id not in (" +
+                " select c.companyId from Subscriber c where c.id in (" +
                 " select d.subscriberId from LoginAttempt d where d.success = :value0" +
                 " and d.created > :value1))";
         Date date = Helper.addDays(new Date(), days * -1);
@@ -377,14 +459,16 @@ public class ApiV1 {
     @Path("search/company/{query}")
     @UserJwt
     public Response search(@PathParam(value = "query") String query) {
+        int id = Helper.parseId(query);
         query = "%" + query.toLowerCase().trim() + "%";
         String sql = " select b.id from Company b " +
                 " where lower(b.name) like :value0 " +
                 " or lower(b.nameAr) like :value0 " +
                 " or b.id in (" +
                 " select c.companyId from Subscriber c where c.email like :value0 " +
-                " or c.mobile like :value0 or c.name like :value0)";
-        List<Integer> ids = dao.getJPQLParams(Integer.class, sql, query);
+                " or c.mobile like :value0 or c.name like :value0) " +
+                "or b.id = :value1";
+        List<Integer> ids = dao.getJPQLParams(Integer.class, sql, query, id);
         Map<String, Object> map = new HashMap<>();
         map.put("companies", ids);
         return Response.ok().entity(map).build();
