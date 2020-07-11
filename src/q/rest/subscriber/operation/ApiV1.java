@@ -291,6 +291,7 @@ public class ApiV1 {
         sk.setSubscriberId((int) map.get("subscriberId"));
         sk.setQuery((String) map.get("query"));
         sk.setCreated(new Date());
+        System.out.println("at subscriber found is : " +map.get("found") );
         sk.setFound((boolean)map.get("found"));
         dao.persist(sk);
         return Response.ok().build();
