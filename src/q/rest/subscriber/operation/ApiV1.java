@@ -1,10 +1,7 @@
 package q.rest.subscriber.operation;
 
 import q.rest.subscriber.dao.DAO;
-import q.rest.subscriber.filter.annotation.SubscriberJwt;
-import q.rest.subscriber.filter.annotation.UserJwt;
-import q.rest.subscriber.filter.annotation.UserSubscriberJwt;
-import q.rest.subscriber.filter.annotation.ValidApp;
+import q.rest.subscriber.filter.annotation.*;
 import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
 import q.rest.subscriber.helper.KeyConstant;
@@ -13,6 +10,7 @@ import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
+import q.rest.subscriber.model.reduced.CompanyReduced;
 
 import javax.ejb.EJB;
 import javax.ws.rs.*;
@@ -293,6 +291,7 @@ public class ApiV1 {
         sk.setSubscriberId((int) map.get("subscriberId"));
         sk.setQuery((String) map.get("query"));
         sk.setCreated(new Date());
+        sk.setFound((boolean)map.get("found"));
         dao.persist(sk);
         return Response.ok().build();
     }
@@ -722,6 +721,20 @@ public class ApiV1 {
         }
         throwError(404);
         return null;
+    }
+
+    @InternalApp
+    @POST
+    @Path("companies/reduced")
+    public Response getCompanyReduced(Map<String,Object> map) {
+        List<Integer> ids = (ArrayList) map.get("companyIds");
+        String sql = "select * from sub_company b where b.id in (0";
+        for (var id : ids){
+            sql+= "," +id;
+        }
+        sql += ")";
+        List<CompanyReduced> companyReducedList = dao.getNative(CompanyReduced.class, sql);
+        return Response.ok().entity(companyReducedList).build();
     }
 
 

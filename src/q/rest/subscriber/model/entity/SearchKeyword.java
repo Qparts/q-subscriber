@@ -19,6 +19,7 @@ public class SearchKeyword implements Serializable {
     private String query;
     private int companyId;
     private int appCode;
+    private Boolean found;
 
     public static long getSerialVersionUID() {
         return serialVersionUID;
@@ -62,6 +63,14 @@ public class SearchKeyword implements Serializable {
 
     public void setAppCode(int appCode) {
         this.appCode = appCode;
+    }
+
+    public Boolean getFound() {
+        return found;
+    }
+
+    public void setFound(Boolean found) {
+        this.found = found;
     }
 
     public static class SearchKeywordPK implements Serializable{
