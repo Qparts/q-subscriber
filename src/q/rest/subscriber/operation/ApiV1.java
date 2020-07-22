@@ -291,7 +291,6 @@ public class ApiV1 {
         sk.setSubscriberId((int) map.get("subscriberId"));
         sk.setQuery((String) map.get("query"));
         sk.setCreated(new Date());
-        System.out.println("at subscriber found is : " +map.get("found") );
         sk.setFound((boolean)map.get("found"));
         dao.persist(sk);
         return Response.ok().build();
@@ -500,26 +499,44 @@ public class ApiV1 {
     }
 
 
-    private void updateSubscriptionStatus(Subscriber subscriber) {
+    private Subscriber updateSubscriptionStatus(Subscriber subscriber) {
         Subscription activeSubscription = dao.findTwoConditions(Subscription.class, "companyId", "status", subscriber.getCompanyId(), 'A');
         if (activeSubscription != null) {
             if (activeSubscription.getEndDate().before(new Date())) {
                 activeSubscription.setStatus('E');
                 dao.update(activeSubscription);
                 //check if there is future make it active
-                String jpql = "select b from Subscription b where b.companyId = :value0 b.status = :value1 and b.startDate < :value2";
+                String jpql = "select b from Subscription b where b.companyId = :value0 and b.status = :value1 and b.startDate < :value2";
                 Subscription futureSubscription = dao.findJPQLParams(Subscription.class, jpql, subscriber.getCompanyId(), 'F', new Date());
                 if (futureSubscription != null) {
                     futureSubscription.setStatus('A');
                     dao.update(futureSubscription);
+                }else{
+                    //downgrade
+                    Company company = dao.find(Company.class, subscriber.getCompanyId());
+                    company.getActiveSubscription().getPlanId();
+                    Map<String, Integer> planIds = getBasicPlanId();
+                    int planId = planIds.get("planId");
+                    int durationId = planIds.get("durationId");
+                    int roleId = planIds.get("roleId");
+                    GeneralRole role = dao.find(GeneralRole.class, roleId);
+                    for(Subscriber s : company.getSubscribers()) {
+                        s.getRoles().clear();
+                        s.getRoles().add(role);
+                        dao.update(s);
+                        if(subscriber.getId() == s.getId()){
+                            subscriber = s;
+                        }
+                    }
                 }
             }
         }
+        return subscriber;
     }
 
 
     private LoginObject getLoginObject(Subscriber subscriber, int appCode) {
-        updateSubscriptionStatus(subscriber);
+        subscriber = updateSubscriptionStatus(subscriber);
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
         return new LoginObject(company, subscriber, jwt);
@@ -693,6 +710,14 @@ public class ApiV1 {
     @UserJwt
     public Response createGeneralRole(GeneralRole generalRole) {
         dao.persist(generalRole);
+        return Response.status(200).entity(generalRole).build();
+    }
+
+    @PUT
+    @Path("general-role")
+    @UserJwt
+    public Response updateGeneralRole(GeneralRole generalRole) {
+        dao.update(generalRole);
         return Response.status(200).entity(generalRole).build();
     }
 
