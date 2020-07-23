@@ -373,6 +373,31 @@ public class ApiV1 {
 
     @UserJwt
     @POST
+    @Path("search-report/accumulated")
+    public Response getSearchReportAccumulated(Map<String,Object> map){
+        Date from = new Date((long) map.get("from"));
+        Date to = new Date((long) map.get("to"));
+        Helper h = new Helper();
+//        String fromFormatted = h.getDateFormat(from, "yyyy-MM-dd");
+  //      String toFormatted = h.getDateFormat(to, "yyyy-MM-dd");
+        String sql = "select b.companyId, count(*) from SearchKeyword b where cast(b.created as date) between cast(:value0 as date) and cast(:value1 as date) group by b.companyId";
+        System.out.println(sql);
+        List<Object> ss = dao.getJPQLParams(Object.class, sql, from, to);
+        List<CompanySearchCount> csc = new ArrayList<>();
+        for (Object o : ss) {
+            if (o instanceof Object[]) {
+                Object[] objArray = (Object[]) o;
+                int companyId = ((Number) objArray[0]).intValue();
+                int count = ((Number) objArray[1]).intValue();
+                CompanySearchCount sc = new CompanySearchCount(companyId, null, count);
+                csc.add(sc);
+            }
+        }
+        return Response.ok().entity(csc).build();
+    }
+
+    @UserJwt
+    @POST
     @Path("search-report")
     public Response getSearchReport(Map<String,Object> map){
         Date from = new Date((long) map.get("from"));
