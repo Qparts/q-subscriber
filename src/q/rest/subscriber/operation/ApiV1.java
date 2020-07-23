@@ -19,7 +19,6 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.time.Month;
 import java.util.*;
 
 @Path("/api/v1/")
@@ -370,6 +369,31 @@ public class ApiV1 {
         summary.setTopCompanies(topCompaniesIds);
         summary.setMonthlySearches(monthly);
         return Response.ok().entity(summary).build();
+    }
+
+    @UserJwt
+    @POST
+    @Path("search-report")
+    public Response getSearchReport(Map<String,Object> map){
+        Date from = new Date((long) map.get("from"));
+        Date to = new Date((long) map.get("to"));
+        Helper h = new Helper();
+        List<Date> dates = h.getAllDatesBetween(from, to);
+        List<CompanySearchCount> csc = new ArrayList<>();
+        for (Date date : dates) {
+            String sql = "select b.companyId, count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date) group by b.companyId";
+            List<Object> ss = dao.getJPQLParams(Object.class, sql, date);
+            for (Object o : ss) {
+                if (o instanceof Object[]) {
+                    Object[] objArray = (Object[]) o;
+                    int companyId = ((Number) objArray[0]).intValue();
+                    int count = ((Number) objArray[1]).intValue();
+                    CompanySearchCount sc = new CompanySearchCount(date, companyId, count);
+                    csc.add(sc);
+                }
+            }
+        }
+        return Response.ok().entity(csc).build();
     }
 
     @UserJwt
