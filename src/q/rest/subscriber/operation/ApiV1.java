@@ -371,6 +371,19 @@ public class ApiV1 {
         return Response.ok().entity(summary).build();
     }
 
+    @SubscriberJwt
+    @GET
+    @Path("verify-search-count/company/{id}")
+    public Response verifySearchCount(@PathParam(value = "id") int companyId){
+        String sql = "select count(*) from SearchKeyword where found = :value0 and companyId = :value1" +
+                " and cast (created as date) = cast (now() as date)";
+        Number number = dao.findJPQLParams(Number.class,sql, true, companyId);
+        if(number.intValue() > 10){
+            return Response.status(403).build();
+        }
+        return Response.status(201).build();
+    }
+
     @UserJwt
     @POST
     @Path("search-report/accumulated")
@@ -378,10 +391,7 @@ public class ApiV1 {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
-//        String fromFormatted = h.getDateFormat(from, "yyyy-MM-dd");
-  //      String toFormatted = h.getDateFormat(to, "yyyy-MM-dd");
         String sql = "select b.companyId, count(*) from SearchKeyword b where cast(b.created as date) between cast(:value0 as date) and cast(:value1 as date) group by b.companyId";
-        System.out.println(sql);
         List<Object> ss = dao.getJPQLParams(Object.class, sql, from, to);
         List<CompanySearchCount> csc = new ArrayList<>();
         for (Object o : ss) {
