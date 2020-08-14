@@ -290,7 +290,7 @@ public class ApiV1 {
         sk.setSubscriberId((int) map.get("subscriberId"));
         sk.setQuery((String) map.get("query"));
         sk.setCreated(new Date());
-        sk.setFound((boolean)map.get("found"));
+        sk.setFound((boolean) map.get("found"));
         dao.persist(sk);
         return Response.ok().build();
     }
@@ -298,7 +298,7 @@ public class ApiV1 {
     @UserJwt
     @GET
     @Path("company-summary-report/{id}")
-    public Response getCompanySummary(@PathParam(value = "id") int id){
+    public Response getCompanySummary(@PathParam(value = "id") int id) {
         String sql = "select b from SearchKeyword b where b.companyId =:value0 order by b.created desc";
         List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50, id);
         sql = "select count(*) from SearchKeyword b where b.companyId =:value0";
@@ -308,7 +308,7 @@ public class ApiV1 {
                 " count (z.*) as count" +
                 " from" +
                 " (select date_trunc('month', created) as date, count(*) as count" +
-                " from sub_search_keyword where company_id = "+id+" group by date_trunc('month', created) order by date desc limit 6)z order by z.date;";
+                " from sub_search_keyword where company_id = " + id + " group by date_trunc('month', created) order by date desc limit 6)z order by z.date;";
         List<Object> ss = dao.getNative(sql);
         List<MonthlySearches> monthly = new ArrayList<>();
         for (Object o : ss) {
@@ -339,9 +339,9 @@ public class ApiV1 {
         sql = "select count(*) from Company c where c.id in (select c.companyId from SearchKeyword c where c.created > :value0)";
         int activeCompanies = dao.findJPQLParams(Number.class, sql, Helper.addDays(new Date(), -5)).intValue();
         sql = "select b from SearchKeyword b order by b.created desc";
-        List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql , 50);
+        List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50);
         sql = "select b.id from Company b order by b.created desc";
-        List<Integer> topCompaniesIds = dao.getJPQLParamsMax(Integer.class, sql , 10);
+        List<Integer> topCompaniesIds = dao.getJPQLParamsMax(Integer.class, sql, 10);
         sql = "select to_char(z.date, 'Mon') as mon," +
                 " extract(year from z.date) as yy," +
                 " count (z.*) as count" +
@@ -374,20 +374,38 @@ public class ApiV1 {
     @SubscriberJwt
     @GET
     @Path("verify-search-count/company/{id}")
-    public Response verifySearchCount(@PathParam(value = "id") int companyId){
+    public Response verifySearchCount(@PathParam(value = "id") int companyId) {
         String sql = "select count(*) from SearchKeyword where found = :value0 and companyId = :value1" +
                 " and cast (created as date) = cast (now() as date)";
-        Number number = dao.findJPQLParams(Number.class,sql, true, companyId);
-        if(number.intValue() > 10){
+        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
+        if (number.intValue() >= 10) {
             return Response.status(403).build();
         }
         return Response.status(201).build();
     }
 
+    @SubscriberJwt
+    @POST
+    @Path("hit-search-limit")
+    public Response hitLimit(Map<String, Integer> map) {
+        int companyId = map.get("companyId");
+        String sql = "select b from SearchLimit b where b.companyId = :value0 and cast (b.created as date) = cast (now() as date)";
+        SearchLimit sl = dao.findJPQLParams(SearchLimit.class, sql, companyId);
+        if (sl != null) {
+            throwError(409);
+        }
+        sl = new SearchLimit();
+        sl.setCompanyId(companyId);
+        sl.setCreated(new Date());
+        dao.persist(sl);
+        return Response.ok().build();
+    }
+
+
     @UserJwt
     @POST
     @Path("search-report/accumulated")
-    public Response getSearchReportAccumulated(Map<String,Object> map){
+    public Response getSearchReportAccumulated(Map<String, Object> map) {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -406,10 +424,31 @@ public class ApiV1 {
         return Response.ok().entity(csc).build();
     }
 
+
+    @UserJwt
+    @POST
+    @Path("search-report/hit-limit")
+    public Response getSearchReportLimit(Map<String, Object> map){
+        Date from = new Date((long) map.get("from"));
+        Date to = new Date((long) map.get("to"));
+        Helper h = new Helper();
+        List<Date> dates = h.getAllDatesBetween(from, to);
+        List<CompanySearchCount> csc = new ArrayList<>();
+        for (Date date : dates) {
+            String sql = "select b from SearchLimit b where cast(b.created as date) = cast(:value0 as date)";
+            List<SearchLimit> limits = dao.getJPQLParams(SearchLimit.class, sql, date);
+            for(var limit : limits){
+                CompanySearchCount counts = new CompanySearchCount(limit.getCreated(), limit.getCompanyId(), 0);
+                csc.add(counts);
+            }
+        }
+        return Response.ok().entity(csc).build();
+    }
+
     @UserJwt
     @POST
     @Path("search-report")
-    public Response getSearchReport(Map<String,Object> map){
+    public Response getSearchReport(Map<String, Object> map) {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -478,7 +517,7 @@ public class ApiV1 {
     @GET
     @Path("companies/all")
     @UserJwt
-    public Response getAllCompanies(){
+    public Response getAllCompanies() {
         String sql = "select b.id from Company b order by b.id desc";
         List<Integer> ids = dao.getJPQLParams(Integer.class, sql);
         Map<String, Object> map = new HashMap<>();
@@ -570,7 +609,7 @@ public class ApiV1 {
                 if (futureSubscription != null) {
                     futureSubscription.setStatus('A');
                     dao.update(futureSubscription);
-                }else{
+                } else {
                     //downgrade
                     Company company = dao.find(Company.class, subscriber.getCompanyId());
                     company.getActiveSubscription().getPlanId();
@@ -579,11 +618,11 @@ public class ApiV1 {
                     int durationId = planIds.get("durationId");
                     int roleId = planIds.get("roleId");
                     GeneralRole role = dao.find(GeneralRole.class, roleId);
-                    for(Subscriber s : company.getSubscribers()) {
+                    for (Subscriber s : company.getSubscribers()) {
                         s.getRoles().clear();
                         s.getRoles().add(role);
                         dao.update(s);
-                        if(subscriber.getId() == s.getId()){
+                        if (subscriber.getId() == s.getId()) {
                             subscriber = s;
                         }
                     }
@@ -811,11 +850,11 @@ public class ApiV1 {
     @InternalApp
     @POST
     @Path("companies/reduced")
-    public Response getCompanyReduced(Map<String,Object> map) {
+    public Response getCompanyReduced(Map<String, Object> map) {
         List<Integer> ids = (ArrayList) map.get("companyIds");
         String sql = "select * from sub_company b where b.id in (0";
-        for (var id : ids){
-            sql+= "," +id;
+        for (var id : ids) {
+            sql += "," + id;
         }
         sql += ")";
         List<CompanyReduced> companyReducedList = dao.getNative(CompanyReduced.class, sql);
