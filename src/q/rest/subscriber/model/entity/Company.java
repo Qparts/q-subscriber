@@ -37,7 +37,10 @@ public class Company {
     @JoinColumn(name="company_id")
     @OrderBy("startDate desc")
     private Set<Subscription> subscriptions = new HashSet<>();
-
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name="sub_company_label", joinColumns = @JoinColumn(name="company_id"), inverseJoinColumns = @JoinColumn(name="label_id"))
+    @OrderBy(value = "id")
+    private Set<Label> labels = new HashSet<>();
 
     public Company() {
     }
@@ -232,4 +235,11 @@ public class Company {
         this.subscriptions = subscriptions;
     }
 
+    public Set<Label> getLabels() {
+        return labels;
+    }
+
+    public void setLabels(Set<Label> labels) {
+        this.labels = labels;
+    }
 }

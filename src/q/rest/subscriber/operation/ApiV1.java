@@ -828,6 +828,28 @@ public class ApiV1 {
         return 0;
     }
 
+    @POST
+    @Path("label")
+    @UserJwt
+    public Response createLabel(Label label) {
+        label.setCreated(new Date());
+        Label check = dao.findCondition(Label.class, "label" , label.getLabel());
+        if(check != null){
+            throwError(409);
+        }
+        dao.persist(label);
+        return Response.status(200).entity(label).build();
+    }
+
+    @GET
+    @Path("labels")
+    @UserJwt
+    public Response getLabels(){
+        List<Label> labels = dao.get(Label.class);
+        return Response.status(200).entity(labels).build();
+    }
+
+
     @UserSubscriberJwt
     @GET
     @Path("qvm-invoice/{invoiceId}/company/{companyId}")
