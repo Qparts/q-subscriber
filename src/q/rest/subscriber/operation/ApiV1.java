@@ -43,6 +43,8 @@ public class ApiV1 {
     }
 
 
+
+
     @UserSubscriberJwt
     @POST
     @Path("additional-subscriber-request")
@@ -185,6 +187,48 @@ public class ApiV1 {
         dao.update(sub);
         dao.delete(verification);
         return Response.status(200).entity(sub).build();
+    }
+
+
+
+    @InternalApp
+    @POST
+    @Path("send-purchase-order")
+    public Response sendPurchaseOrder(Map<String, Integer> map){
+        int receiverId = map.get("receiverId");
+        int senderId = map.get("senderId");
+        Company receiverCompany = dao.find(Company.class, receiverId);
+        Company senderCompany = dao.find(Company.class, senderId);
+        Subscriber admin = receiverCompany.getAdminSubscriber();
+        if(receiverCompany.getCountryId() == 1){
+            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName());
+            async.sendSms(smsModel);
+        }else {
+            String[] s = new String[]{admin.getName(), senderCompany.getName()};
+            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, s);
+            async.sendEmail(emailModel);
+        }
+        return Response.status(200).build();
+    }
+
+    @InternalApp
+    @POST
+    @Path("accept-purchase-order")
+    public Response acceptPurchaseOrder(Map<String, Integer> map){
+        int receiverId = map.get("receiverId");
+        int senderId = map.get("senderId");
+        Company receiverCompany = dao.find(Company.class, receiverId);
+        Company senderCompany = dao.find(Company.class, senderId);
+        Subscriber admin = senderCompany.getAdminSubscriber();
+        if(receiverCompany.getCountryId() == 1){
+            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER, receiverCompany.getName());
+            async.sendSms(smsModel);
+        }else {
+            String[] s = new String[]{admin.getName(), receiverCompany.getName()};
+            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER, s);
+            async.sendEmail(emailModel);
+        }
+        return Response.status(200).build();
     }
 
 
