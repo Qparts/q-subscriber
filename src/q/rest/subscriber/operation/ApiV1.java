@@ -10,6 +10,9 @@ import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
+import q.rest.subscriber.model.publicapi.PbCompany;
+import q.rest.subscriber.model.publicapi.PbLoginObject;
+import q.rest.subscriber.model.publicapi.PbSubscriber;
 import q.rest.subscriber.model.reduced.CompanyReduced;
 
 import javax.ejb.EJB;
@@ -135,7 +138,7 @@ public class ApiV1 {
         Subscriber subscriber = company.getSubscribers().iterator().next();
         subscriber = dao.find(Subscriber.class, subscriber.getId());
         verifyLogin(subscriber, subscriber.getEmail());
-        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.status(200).entity(loginObject).build();
     }
 
@@ -309,7 +312,7 @@ public class ApiV1 {
         String email = map.get("email").trim().toLowerCase();
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
         verifyLogin(subscriber, email);
-        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.ok().entity(loginObject).build();
     }
 
@@ -677,13 +680,18 @@ public class ApiV1 {
     }
 
 
-    private LoginObject getLoginObject(Subscriber subscriber, int appCode) {
+    private Object getLoginObject(Subscriber subscriber, int appCode) {
         subscriber = updateSubscriptionStatus(subscriber);
+        if(appCode == 6){
+            PbCompany pbCompany = dao.find(PbCompany.class, subscriber.getCompanyId());
+            PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
+            String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
+            return new PbLoginObject(pbCompany, pbSubscriber, jwt);
+        }
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
         return new LoginObject(company, subscriber, jwt);
     }
-
 
     private String issueToken(int companyId, int userId, int appCode) {
         try {
@@ -746,7 +754,7 @@ public class ApiV1 {
         dao.update(subscriber);
         pr.setStatus('V');
         dao.update(pr);
-        LoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        LoginObject loginObject = (LoginObject) getLoginObject(subscriber, webApp.getAppCode());
         return Response.status(200).entity(loginObject).build();
     }
 
