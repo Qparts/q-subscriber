@@ -19,9 +19,7 @@ import javax.ejb.EJB;
 import javax.ws.rs.*;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import javax.ws.rs.core.*;
 import java.util.*;
 
 @Path("/api/v1/")
@@ -479,7 +477,7 @@ public class ApiV1 {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
-        List<Date> dates = h.getAllDatesBetween(from, to);
+        List<Date> dates = h.getAllDatesBetween(from, to, false);
         List<CompanySearchCount> csc = new ArrayList<>();
         for (Date date : dates) {
             String sql = "select b from SearchLimit b where cast(b.created as date) = cast(:value0 as date)";
@@ -499,7 +497,7 @@ public class ApiV1 {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
-        List<Date> dates = h.getAllDatesBetween(from, to);
+        List<Date> dates = h.getAllDatesBetween(from, to, false);
         List<CompanySearchCount> csc = new ArrayList<>();
         for (Date date : dates) {
             String sql = "select b.companyId, count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date) group by b.companyId";
@@ -520,9 +518,10 @@ public class ApiV1 {
     @UserJwt
     @GET
     @Path("search-activity/from/{from}/to/{to}")
-    public Response getVendorSearchKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong) {
+    public Response getVendorSearchKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong, @Context UriInfo info) {
         Helper h = new Helper();
-        List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong));
+        String excludeFriday = info.getQueryParameters().getFirst("exclude-friday");
+        List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong), excludeFriday != null);
         List<Map> kgs = new ArrayList<>();
         for (Date date : dates) {
             String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date)";
@@ -626,7 +625,7 @@ public class ApiV1 {
         Helper h = new Helper();
         Date toDate = new Date(toLong);
         Date fromDate = new Date(fromLong);
-        List<Date> dates = h.getAllDatesBetween(fromDate, toDate);
+        List<Date> dates = h.getAllDatesBetween(fromDate, toDate, false);
         List<CompaniesDateGroup> vdgs = new ArrayList<>();
         for (Date date : dates) {
             String sql = "select count(b) from Company b where cast(b.created as date) = cast(:value0 as date)";
