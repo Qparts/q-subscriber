@@ -16,6 +16,15 @@ public class LoginAttempt {
     private int subscriberId;
     @Temporal(TemporalType.TIMESTAMP)
     private Date created;
+    private String ip;
+
+    public String getIp() {
+        return ip;
+    }
+
+    public void setIp(String ip) {
+        this.ip = ip;
+    }
 
     public int getId() {
         return id;

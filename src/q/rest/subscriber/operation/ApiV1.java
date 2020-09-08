@@ -116,6 +116,7 @@ public class ApiV1 {
     public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
         WebApp webApp = getWebAppFromAuthHeader(header);
         String code = map.get("code");
+        String ip = map.get("ipAddress");
         Date date = Helper.addMinutes(new Date(), -60);
         String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2";
         SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1);
@@ -135,7 +136,7 @@ public class ApiV1 {
         dao.delete(verification);
         Subscriber subscriber = company.getSubscribers().iterator().next();
         subscriber = dao.find(Subscriber.class, subscriber.getId());
-        verifyLogin(subscriber, subscriber.getEmail());
+        verifyLogin(subscriber, subscriber.getEmail(), ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.status(200).entity(loginObject).build();
     }
@@ -308,8 +309,9 @@ public class ApiV1 {
         WebApp webApp = this.getWebAppFromAuthHeader(header);
         String password = Helper.cypher(map.get("password"));
         String email = map.get("email").trim().toLowerCase();
+        String ip = map.get("ipAddress");
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
-        verifyLogin(subscriber, email);
+        verifyLogin(subscriber, email, ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.ok().entity(loginObject).build();
     }
@@ -706,12 +708,12 @@ public class ApiV1 {
     }
 
 
-    private void verifyLogin(Subscriber subscriber, String email) {
+    private void verifyLogin(Subscriber subscriber, String email, String ip) {
         if (subscriber == null) {
-            async.createLoginAttempt(email, 0);
+            async.createLoginAttempt(email, 0, ip);
             throwError(404, "Invalid credentials");
         } else {
-            async.createLoginAttempt(email, subscriber.getId());
+            async.createLoginAttempt(email, subscriber.getId(), ip);
         }
     }
 
