@@ -215,19 +215,27 @@ public class ApiV1 {
 
     @InternalApp
     @POST
-    @Path("accept-purchase-order")
-    public Response acceptPurchaseOrder(Map<String, Integer> map){
-        int receiverId = map.get("receiverId");
-        int senderId = map.get("senderId");
+    @Path("update-purchase-order")
+    public Response acceptPurchaseOrder(Map<String, Object> map){
+        int receiverId = (int) map.get("receiverId");
+        int senderId = (int) map.get("senderId");
+        String status = (String) map.get("status");
         Company receiverCompany = dao.find(Company.class, receiverId);
         Company senderCompany = dao.find(Company.class, senderId);
         Subscriber admin = senderCompany.getAdminSubscriber();
+        String purpose ="";
+        if(status.equals("Accepted")){
+            purpose  = AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER;
+        }
+        else if (status.equals("Refused")){
+            purpose  = AppConstants.MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER;
+        }
         if(receiverCompany.getCountryId() == 1){
-            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER, receiverCompany.getName());
+            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, purpose, receiverCompany.getName());
             async.sendSms(smsModel);
         }else {
             String[] s = new String[]{admin.getName(), receiverCompany.getName()};
-            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER, s);
+            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), purpose, s);
             async.sendEmail(emailModel);
         }
         return Response.status(200).build();

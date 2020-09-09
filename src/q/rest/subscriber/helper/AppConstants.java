@@ -31,4 +31,5 @@ public class AppConstants {
     public static final String MESSAGING_PURPOSE_INVOICE = "subscription-invoice";
     public static final String MESSAGING_PURPOSE_NEW_PURCHASE_ORDER = "purchase-order-submit";
     public static final String MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER = "purchase-order-accept";
+    public static final String MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER = "purchase-order-refuse";
 }
