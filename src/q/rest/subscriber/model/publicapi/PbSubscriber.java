@@ -2,9 +2,11 @@ package q.rest.subscriber.model.publicapi;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import q.rest.subscriber.model.entity.SignupRequest;
+import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 
 import javax.persistence.*;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -24,6 +26,7 @@ public class PbSubscriber {
     private boolean admin;
     @JsonIgnore
     private String password;
+    @JsonIgnore
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name="sub_subscriber_general_role",
             joinColumns = @JoinColumn(name="subscriber_id"),

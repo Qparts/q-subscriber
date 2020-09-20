@@ -581,6 +581,21 @@ public class ApiV1 {
         return Response.ok().entity(map).build();
     }
 
+    @POST
+    @Path("search/company/labels")
+    @UserJwt
+    public Response searchCompaniesWithLabels(List<Label> labels) {
+        String sql = "select b.id from sub_company b where b.id in (" +
+                "select c.company_id from sub_company_label c where c.label_id in ( 0";
+        for (Label l : labels) {
+            sql += "," + l.getId();
+        }
+        sql += "))";
+        List<Integer> list = (List<Integer>) dao.getNative(sql);
+        Map<String, Object> map = new HashMap<>();
+        map.put("companies", list);
+        return Response.ok().entity(map).build();
+    }
 
     @GET
     @Path("search/company/not-logged/days/{days}")

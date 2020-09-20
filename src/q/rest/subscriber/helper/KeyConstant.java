@@ -55,6 +55,15 @@ public class KeyConstant {
         PUBLIC_KEY = kf.generatePublic(keySpec);
     }
 
+    public static String issueToken(int userId, Map<String, Object> claimsMap, Date issued, Date expiry) throws Exception{
+        PrivateKey key = KeyConstant.PRIVATE_KEY;
+        return Jwts.builder().addClaims(claimsMap)
+                .setSubject(Integer.toString(userId))
+                .setIssuedAt(issued)
+                .setExpiration(expiry)
+                .signWith(key).compact();
+    }
+
     public static String issueToken(int userId, Map<String, Object> claimsMap) throws Exception{
         PrivateKey key = KeyConstant.PRIVATE_KEY;
         return Jwts.builder().addClaims(claimsMap)
