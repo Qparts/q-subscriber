@@ -585,12 +585,13 @@ public class ApiV1 {
     @Path("search/company/labels")
     @UserJwt
     public Response searchCompaniesWithLabels(List<Label> labels) {
-        String sql = "select b.id from sub_company b where b.id in (" +
-                "select c.company_id from sub_company_label c where c.label_id in ( 0";
-        for (Label l : labels) {
-            sql += "," + l.getId();
+        if(labels == null || labels.isEmpty()){
+            return Response.status(400).build();
         }
-        sql += "))";
+        String sql = "select b.id from sub_company b where b.id != 0";
+        for (var l : labels) {
+            sql+= " and b.id in ( select c.company_id from sub_company_label c where c.label_id = " + l.getId() + " ) ";
+        }
         List<Integer> list = (List<Integer>) dao.getNative(sql);
         Map<String, Object> map = new HashMap<>();
         map.put("companies", list);
