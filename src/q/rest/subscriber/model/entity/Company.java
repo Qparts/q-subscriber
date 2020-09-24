@@ -2,6 +2,7 @@ package q.rest.subscriber.model.entity;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.hibernate.annotations.Where;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 
 import javax.persistence.*;
@@ -30,6 +31,11 @@ public class Company {
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinColumn(name = "company_id")
     private Set<Branch> branches = new HashSet<>();
+    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @JoinColumn(name = "company_id")
+    @OrderBy("created desc")
+    @Where(clause = "status = 'A'")
+    private Set<Comment> comments = new HashSet<>();
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinColumn(name="company_id")
     private Set<Subscriber> subscribers = new HashSet<>();
@@ -241,5 +247,13 @@ public class Company {
 
     public void setLabels(Set<Label> labels) {
         this.labels = labels;
+    }
+
+    public Set<Comment> getComments() {
+        return comments;
+    }
+
+    public void setComments(Set<Comment> comments) {
+        this.comments = comments;
     }
 }
