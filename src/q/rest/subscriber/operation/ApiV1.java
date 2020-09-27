@@ -598,6 +598,15 @@ public class ApiV1 {
         return Response.ok().entity(map).build();
     }
 
+    @POST
+    @Path("comment")
+    @UserJwt
+    public Response addComment(Comment comment){
+        if(comment.getCompanyId() == 0) throwError(409);
+        dao.persist(comment);
+        return Response.ok().entity(comment).build();
+    }
+
     @GET
     @Path("search/company/not-logged/days/{days}")
     @UserJwt
@@ -904,6 +913,8 @@ public class ApiV1 {
         }
         return 0;
     }
+
+
 
     @POST
     @Path("label")
