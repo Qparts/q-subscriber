@@ -602,6 +602,7 @@ public class ApiV1 {
     @Path("comment")
     @UserJwt
     public Response addComment(Comment comment){
+        System.out.println("Received comment and now will persist");
         if(comment.getCompanyId() == 0) throwError(409);
         dao.persist(comment);
         return Response.ok().entity(comment).build();
