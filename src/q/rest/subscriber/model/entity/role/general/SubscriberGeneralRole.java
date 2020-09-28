@@ -4,6 +4,7 @@ import q.rest.subscriber.model.entity.Subscriber;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.Objects;
 
 @Entity
 @Table(name="sub_subscriber_general_role")
@@ -57,6 +58,20 @@ public class SubscriberGeneralRole {
 
         public void setSubscriber(int subscriber) {
             this.subscriber = subscriber;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SubscriberGeneralRolePK that = (SubscriberGeneralRolePK) o;
+            return role == that.role &&
+                    subscriber == that.subscriber;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(role, subscriber);
         }
     }
 }

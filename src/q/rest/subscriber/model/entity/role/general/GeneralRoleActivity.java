@@ -2,6 +2,7 @@ package q.rest.subscriber.model.entity.role.general;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.Objects;
 
 @Entity
 @Table(name="sub_general_role_activity")
@@ -55,6 +56,20 @@ public class GeneralRoleActivity {
 
         public void setActivity(int activity) {
             this.activity = activity;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            GeneralRoleActivityPK that = (GeneralRoleActivityPK) o;
+            return role == that.role &&
+                    activity == that.activity;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(role, activity);
         }
     }
 }

@@ -6,6 +6,7 @@ import q.rest.subscriber.model.entity.role.general.GeneralRoleActivity;
 import javax.persistence.*;
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Objects;
 
 @Entity
 @Table(name="sub_search_limit")
@@ -53,6 +54,20 @@ public class SearchLimit implements Serializable {
 
         public void setCreated(Date created) {
             this.created = created;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SearchLimiPK that = (SearchLimiPK) o;
+            return companyId == that.companyId &&
+                    Objects.equals(created, that.created);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(companyId, created);
         }
     }
 }

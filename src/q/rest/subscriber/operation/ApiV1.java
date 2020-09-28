@@ -599,13 +599,53 @@ public class ApiV1 {
     }
 
     @POST
+    @Path("pin-comment")
+    @UserJwt
+    public Response pinComment(CommentPinned pin){
+        String sql = "select b from CommentPinned b where b.comment.id = :value0 and b.pinnedBy = :value1";
+        List<CommentPinned> check = dao.getJPQLParams(CommentPinned.class, sql , pin.getComment().getId(), pin.getPinnedBy());
+        if(!check.isEmpty()) throwError(409);
+        pin.setCreated(new Date());
+        dao.persist(pin);
+        return Response.ok().entity(pin).build();
+    }
+
+    @DELETE
+    @Path("pin-comment/{pinId}")
+    @UserJwt
+    public Response unpin(@PathParam(value = "pinId") int pinId) {
+        CommentPinned pinned = dao.find(CommentPinned.class, pinId);
+        verifyObjectFound(pinned);
+        dao.delete(pinned);
+        return Response.ok().build();
+    }
+
+    @GET
+    @Path("pin-comments/user/{userId}")
+    @UserJwt
+    public Response getPinnedComments(@PathParam(value = "userId") int userId){
+        String sql = "select b from CommentPinned b where b.pinnedBy = :value0 order by b.created desc";
+        List<CommentPinned> pinned = dao.getJPQLParams(CommentPinned.class, sql, userId);
+        return Response.ok().entity(pinned).build();
+    }
+
+    @POST
     @Path("comment")
     @UserJwt
     public Response addComment(Comment comment){
-        System.out.println("Received comment and now will persist");
         if(comment.getCompanyId() == 0) throwError(409);
         dao.persist(comment);
         return Response.ok().entity(comment).build();
+    }
+
+    @DELETE
+    @Path("comment/{id}")
+    @UserJwt
+    public Response deleteComment(@PathParam(value = "id") int id){
+        Comment comment = dao.find(Comment.class, id);
+        comment.setStatus('X');
+        dao.update(comment);
+        return Response.ok().build();
     }
 
     @GET
