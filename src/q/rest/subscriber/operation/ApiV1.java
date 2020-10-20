@@ -392,7 +392,7 @@ public class ApiV1 {
         sql = "select count(*) from Company c";
         int totalCompanies = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from Company c where c.id in (select c.companyId from SearchKeyword c where c.created > :value0)";
-        int activeCompanies = dao.findJPQLParams(Number.class, sql, Helper.addDays(new Date(), -5)).intValue();
+        int activeCompanies = dao.findJPQLParams(Number.class, sql, Helper.addDays(new Date(), -30)).intValue();
         sql = "select b from SearchKeyword b order by b.created desc";
         List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50);
         sql = "select b.id from Company b order by b.created desc";
@@ -1045,11 +1045,9 @@ public class ApiV1 {
             premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
         }
         company.getSubscriptions().add(premium);
-        Subscriber admin = company.getAdminSubscriber();
         int roleId = getPlanRoleId(model.getPlanId(), header);
         GeneralRole gr = dao.find(GeneralRole.class, roleId);
-        admin.getRoles().clear();
-        admin.getRoles().add(gr);
+        company.updateSubscribersRoles(gr);
         dao.update(company);
         Company updated = dao.find(Company.class, company.getId());
         async.sendInvoiceEmail(premium, updated, header);

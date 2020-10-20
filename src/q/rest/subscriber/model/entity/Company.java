@@ -75,6 +75,14 @@ public class Company {
 
     }
 
+    @JsonIgnore
+    public void updateSubscribersRoles(GeneralRole role){
+        for(Subscriber subscriber : subscribers){
+            subscriber.getRoles().clear();
+            subscriber.getRoles().add(role);
+        }
+    }
+
 
     @JsonIgnore
     public Subscription getActiveSubscription(){
