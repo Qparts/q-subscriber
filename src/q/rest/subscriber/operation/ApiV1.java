@@ -194,46 +194,44 @@ public class ApiV1 {
     @POST
     @Path("send-purchase-order")
     public Response sendPurchaseOrder(Map<String, Integer> map) {
-        int receiverId = map.get("receiverId");
+        int receiverId = map.get("receiverCompanyId");
         int senderId = map.get("senderId");
         Company receiverCompany = dao.find(Company.class, receiverId);
-        Company senderCompany = dao.find(Company.class, senderId);
+        Subscriber senderSubscriber = dao.find(Subscriber.class, senderId);
+        Company senderCompany = dao.find(Company.class, senderSubscriber.getCompanyId());
         Subscriber admin = receiverCompany.getAdminSubscriber();
-        sendNotification(receiverCompany, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName(), new String[]{admin.getName(), senderCompany.getName()});
-        return Response.status(200).build();
-    }
-
-    private void sendNotification(Company receiver, String purpose, String value, String[] values) {
-        System.out.println("will send sms now");
-        if (receiver.getAdminSubscriber() != null) {
-            if (receiver.getCountryId() == 1) {
-                MessagingModel smsModel = new MessagingModel(receiver.getAdminSubscriber().getMobile(), null, purpose, value);
-                async.sendSms(smsModel);
-            } else {
-                MessagingModel emailModel = new MessagingModel(null, receiver.getAdminSubscriber().getEmail(), purpose, values);
-                async.sendEmail(emailModel);
-            }
+        if (receiverCompany.getCountryId() == 1) {
+            MessagingModel smsModel = new MessagingModel(receiverCompany.getAdminSubscriber().getMobile(), null, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName());
+            async.sendSms(smsModel);
+        } else {
+            MessagingModel emailModel = new MessagingModel(null, receiverCompany.getAdminSubscriber().getEmail(), AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, new String[]{admin.getName(), senderCompany.getName()});
+            async.sendEmail(emailModel);
         }
-        else System.out.println("failed to send because admin is null");
+        return Response.status(200).build();
     }
 
     @InternalApp
     @POST
     @Path("update-purchase-order")
     public Response acceptPurchaseOrder(Map<String, Object> map) {
-        int receiverId = (int) map.get("receiverId");
+        int receiverId = (int) map.get("receiverCompanyId");
         int senderId = (int) map.get("senderId");
         String status = (String) map.get("status");
         Company receiverCompany = dao.find(Company.class, receiverId);
-        Company senderCompany = dao.find(Company.class, senderId);
-        Subscriber admin = senderCompany.getAdminSubscriber();
+        Subscriber subscriber = dao.find(Subscriber.class, senderId);
+        Company senderCompany = dao.find(Company.class, subscriber.getCompanyId());
         String purpose = "";
         if (status.equals("Accepted"))
             purpose = AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER;
         else if (status.equals("Refused"))
             purpose = AppConstants.MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER;
-
-        sendNotification(senderCompany, purpose, receiverCompany.getName(), new String[]{admin.getName(), receiverCompany.getName()});
+        if (senderCompany.getCountryId() == 1) {
+            MessagingModel smsModel = new MessagingModel(subscriber.getMobile(), null, purpose, receiverCompany.getName());
+            async.sendSms(smsModel);
+        } else {
+            MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), purpose, new String[]{subscriber.getName(), receiverCompany.getName()});
+            async.sendEmail(emailModel);
+        }
         return Response.status(200).build();
     }
 
