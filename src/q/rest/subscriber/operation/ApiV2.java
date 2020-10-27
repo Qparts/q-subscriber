@@ -4,13 +4,12 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import q.rest.subscriber.dao.DAO;
-import q.rest.subscriber.filter.annotation.SubscriberJwt;
+import q.rest.subscriber.filter.annotation.UserJwt;
 import q.rest.subscriber.filter.annotation.ValidApp;
 import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
 import q.rest.subscriber.helper.InternalAppRequester;
 import q.rest.subscriber.helper.KeyConstant;
-import q.rest.subscriber.model.LoginObject;
 import q.rest.subscriber.model.WebApp;
 import q.rest.subscriber.model.entity.Company;
 import q.rest.subscriber.model.entity.Subscriber;
@@ -55,6 +54,7 @@ public class ApiV2 {
         return Response.ok().entity(loginObject).build();
     }
 
+
     @POST
     @Path("refresh-token")
     public Response refresh(Map<String, String> map) {
@@ -69,27 +69,27 @@ public class ApiV2 {
                 " and b.status = :value3" +
                 " and b.expiresAt > :value4";
         RefreshToken rt = dao.findJPQLParams(RefreshToken.class, sql, subId, appCode, refreshToken, 'A', new Date());
-        if(rt == null) throwError(401);
+        if (rt == null) throwError(401);
         Subscriber sub = dao.find(Subscriber.class, subId);
         PbLoginObject loginObject = getLoginObject(sub, appCode);
         return Response.status(200).entity(loginObject).build();
     }
 
-    private int[] verifyTokensPair(String shortToken, String refreshToken){
+    private int[] verifyTokensPair(String shortToken, String refreshToken) {
         Claims shortClaims = getJWTClaimsEvenIfExpired(shortToken);
         Claims refreshClaims = getJWTClaimsEvenIfExpired(refreshToken);
         if (!shortClaims.get("sub").toString().equals(refreshClaims.get("sub"))) throwError(401);
         if (shortClaims.get("appCode") != refreshClaims.get("appCode")) throwError(401);
         if (!refreshClaims.get("typ").toString().equals("R")) throwError(401);
         if (!shortClaims.get("typ").toString().equals("S")) throwError(401);
-        int subId =  Integer.parseInt(shortClaims.get("sub").toString());
+        int subId = Integer.parseInt(shortClaims.get("sub").toString());
         int appCode = Integer.parseInt(shortClaims.get("appCode").toString());
         return new int[]{subId, appCode};
     }
 
     @POST
     @Path("logout")
- //   @SubscriberJwt
+    //   @SubscriberJwt
     public Response logout(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int appCode = getAppCodeFromJWT(header);
         int subscriberID = getSubscriberFromJWT(header);
@@ -104,7 +104,7 @@ public class ApiV2 {
         PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);//short one
         List<Integer> activities = extractActivities(pbSubscriber);
-        return new PbLoginObject(pbCompany, pbSubscriber, jwt, null , activities);
+        return new PbLoginObject(pbCompany, pbSubscriber, jwt, null, activities);
     }
 
     private List<Integer> extractActivities(PbSubscriber subscriber) {
@@ -286,7 +286,7 @@ public class ApiV2 {
     public Claims getJWTClaimsEvenIfExpired(String header) {
         try {
             String token = header;
-            if(header.startsWith("Bearer")){
+            if (header.startsWith("Bearer")) {
                 token = header.substring("Bearer".length()).trim();
             }
             return Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
@@ -298,7 +298,7 @@ public class ApiV2 {
     public int getAppCodeFromJWTEvenIfExpired(String header) {
         try {
             String token = header;
-            if(header.startsWith("Bearer")){
+            if (header.startsWith("Bearer")) {
                 token = header.substring("Bearer".length()).trim();
             }
             Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
@@ -311,7 +311,7 @@ public class ApiV2 {
 
     public int getAppCodeFromJWT(String header) {
         String token = header;
-        if(header.startsWith("Bearer")){
+        if (header.startsWith("Bearer")) {
             token = header.substring("Bearer".length()).trim();
         }
         Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();

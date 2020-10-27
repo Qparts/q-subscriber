@@ -44,8 +44,6 @@ public class ApiV1 {
     }
 
 
-
-
     @UserSubscriberJwt
     @POST
     @Path("additional-subscriber-request")
@@ -192,52 +190,50 @@ public class ApiV1 {
     }
 
 
-
     @InternalApp
     @POST
     @Path("send-purchase-order")
-    public Response sendPurchaseOrder(Map<String, Integer> map){
+    public Response sendPurchaseOrder(Map<String, Integer> map) {
         int receiverId = map.get("receiverId");
         int senderId = map.get("senderId");
         Company receiverCompany = dao.find(Company.class, receiverId);
         Company senderCompany = dao.find(Company.class, senderId);
         Subscriber admin = receiverCompany.getAdminSubscriber();
-        if(receiverCompany.getCountryId() == 1){
-            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName());
-            async.sendSms(smsModel);
-        }else {
-            String[] s = new String[]{admin.getName(), senderCompany.getName()};
-            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, s);
-            async.sendEmail(emailModel);
-        }
+        sendNotification(receiverCompany, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName(), new String[]{admin.getName(), senderCompany.getName()});
         return Response.status(200).build();
+    }
+
+    private void sendNotification(Company receiver, String purpose, String value, String[] values) {
+        System.out.println("will send sms now");
+        if (receiver.getAdminSubscriber() != null) {
+            if (receiver.getCountryId() == 1) {
+                MessagingModel smsModel = new MessagingModel(receiver.getAdminSubscriber().getMobile(), null, purpose, value);
+                async.sendSms(smsModel);
+            } else {
+                MessagingModel emailModel = new MessagingModel(null, receiver.getAdminSubscriber().getEmail(), purpose, values);
+                async.sendEmail(emailModel);
+            }
+        }
+        else System.out.println("failed to send because admin is null");
     }
 
     @InternalApp
     @POST
     @Path("update-purchase-order")
-    public Response acceptPurchaseOrder(Map<String, Object> map){
+    public Response acceptPurchaseOrder(Map<String, Object> map) {
         int receiverId = (int) map.get("receiverId");
         int senderId = (int) map.get("senderId");
         String status = (String) map.get("status");
         Company receiverCompany = dao.find(Company.class, receiverId);
         Company senderCompany = dao.find(Company.class, senderId);
         Subscriber admin = senderCompany.getAdminSubscriber();
-        String purpose ="";
-        if(status.equals("Accepted")){
-            purpose  = AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER;
-        }
-        else if (status.equals("Refused")){
-            purpose  = AppConstants.MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER;
-        }
-        if(receiverCompany.getCountryId() == 1){
-            MessagingModel smsModel = new MessagingModel(admin.getMobile(), null, purpose, receiverCompany.getName());
-            async.sendSms(smsModel);
-        }else {
-            String[] s = new String[]{admin.getName(), receiverCompany.getName()};
-            MessagingModel emailModel = new MessagingModel(null, admin.getEmail(), purpose, s);
-            async.sendEmail(emailModel);
-        }
+        String purpose = "";
+        if (status.equals("Accepted"))
+            purpose = AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER;
+        else if (status.equals("Refused"))
+            purpose = AppConstants.MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER;
+
+        sendNotification(senderCompany, purpose, receiverCompany.getName(), new String[]{admin.getName(), receiverCompany.getName()});
         return Response.status(200).build();
     }
 
@@ -483,7 +479,7 @@ public class ApiV1 {
     @UserJwt
     @POST
     @Path("search-report/hit-limit")
-    public Response getSearchReportLimit(Map<String, Object> map){
+    public Response getSearchReportLimit(Map<String, Object> map) {
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -492,7 +488,7 @@ public class ApiV1 {
         for (Date date : dates) {
             String sql = "select b from SearchLimit b where cast(b.created as date) = cast(:value0 as date)";
             List<SearchLimit> limits = dao.getJPQLParams(SearchLimit.class, sql, date);
-            for(var limit : limits){
+            for (var limit : limits) {
                 CompanySearchCount counts = new CompanySearchCount(limit.getCreated(), limit.getCompanyId(), 0);
                 csc.add(counts);
             }
@@ -585,12 +581,12 @@ public class ApiV1 {
     @Path("search/company/labels")
     @UserJwt
     public Response searchCompaniesWithLabels(List<Label> labels) {
-        if(labels == null || labels.isEmpty()){
+        if (labels == null || labels.isEmpty()) {
             return Response.status(400).build();
         }
         String sql = "select b.id from sub_company b where b.id != 0";
         for (var l : labels) {
-            sql+= " and b.id in ( select c.company_id from sub_company_label c where c.label_id = " + l.getId() + " ) ";
+            sql += " and b.id in ( select c.company_id from sub_company_label c where c.label_id = " + l.getId() + " ) ";
         }
         List<Integer> list = (List<Integer>) dao.getNative(sql);
         Map<String, Object> map = new HashMap<>();
@@ -601,10 +597,10 @@ public class ApiV1 {
     @POST
     @Path("pin-comment")
     @UserJwt
-    public Response pinComment(CommentPinned pin){
+    public Response pinComment(CommentPinned pin) {
         String sql = "select b from CommentPinned b where b.comment.id = :value0 and b.pinnedBy = :value1";
-        List<CommentPinned> check = dao.getJPQLParams(CommentPinned.class, sql , pin.getComment().getId(), pin.getPinnedBy());
-        if(!check.isEmpty()) throwError(409);
+        List<CommentPinned> check = dao.getJPQLParams(CommentPinned.class, sql, pin.getComment().getId(), pin.getPinnedBy());
+        if (!check.isEmpty()) throwError(409);
         pin.setCreated(new Date());
         dao.persist(pin);
         return Response.ok().entity(pin).build();
@@ -623,7 +619,7 @@ public class ApiV1 {
     @GET
     @Path("pin-comments/user/{userId}")
     @UserJwt
-    public Response getPinnedComments(@PathParam(value = "userId") int userId){
+    public Response getPinnedComments(@PathParam(value = "userId") int userId) {
         String sql = "select b from CommentPinned b where b.pinnedBy = :value0 order by b.created desc";
         List<CommentPinned> pinned = dao.getJPQLParams(CommentPinned.class, sql, userId);
         return Response.ok().entity(pinned).build();
@@ -632,8 +628,8 @@ public class ApiV1 {
     @POST
     @Path("comment")
     @UserJwt
-    public Response addComment(Comment comment){
-        if(comment.getCompanyId() == 0) throwError(409);
+    public Response addComment(Comment comment) {
+        if (comment.getCompanyId() == 0) throwError(409);
         dao.persist(comment);
         return Response.ok().entity(comment).build();
     }
@@ -641,7 +637,7 @@ public class ApiV1 {
     @DELETE
     @Path("comment/{id}")
     @UserJwt
-    public Response deleteComment(@PathParam(value = "id") int id){
+    public Response deleteComment(@PathParam(value = "id") int id) {
         Comment comment = dao.find(Comment.class, id);
         comment.setStatus('X');
         dao.update(comment);
@@ -757,7 +753,7 @@ public class ApiV1 {
 
     private Object getLoginObject(Subscriber subscriber, int appCode) {
         subscriber = updateSubscriptionStatus(subscriber);
-        if(appCode == 6){
+        if (appCode == 6) {
             PbCompany pbCompany = dao.find(PbCompany.class, subscriber.getCompanyId());
             PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
             String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
@@ -956,14 +952,13 @@ public class ApiV1 {
     }
 
 
-
     @POST
     @Path("label")
     @UserJwt
     public Response createLabel(Label label) {
         label.setCreated(new Date());
-        Label check = dao.findCondition(Label.class, "label" , label.getLabel());
-        if(check != null){
+        Label check = dao.findCondition(Label.class, "label", label.getLabel());
+        if (check != null) {
             throwError(409);
         }
         dao.persist(label);
@@ -973,7 +968,7 @@ public class ApiV1 {
     @GET
     @Path("labels")
     @UserJwt
-    public Response getLabels(){
+    public Response getLabels() {
         List<Label> labels = dao.get(Label.class);
         return Response.status(200).entity(labels).build();
     }
@@ -1010,6 +1005,32 @@ public class ApiV1 {
         sql += ")";
         List<CompanyReduced> companyReducedList = dao.getNative(CompanyReduced.class, sql);
         return Response.ok().entity(companyReducedList).build();
+    }
+
+    //this only works for me
+    @UserJwt
+    @POST
+    @Path("api-long-token")
+    public Response generateApiLongToken(Map<String, Integer> map) {
+        try {
+            int companyId = map.get("companyId");
+            int subscriberId = map.get("subscriberId");
+            int duration = map.get("duration");
+            int appCode = map.get("appCode");
+            Date issued = new Date();
+            Date expire = Helper.addDays(issued, duration);
+            Map<String, Object> cred = new HashMap<>();
+            cred.put("typ", 'S');
+            cred.put("appCode", appCode);
+            cred.put("comp", companyId);
+            String token = KeyConstant.issueToken(subscriberId, cred, issued, expire);
+            MessagingModel emailModel = new MessagingModel(null, AppConstants.ADMIN_EMAIL, AppConstants.MESSAGING_PURPOSE_API_TOKEN, new String[]{token});
+            async.sendEmail(emailModel);
+            return Response.status(200).build();
+        } catch (Exception ex) {
+            throwError(500, "Token issuing error");
+            return null;
+        }
     }
 
 
