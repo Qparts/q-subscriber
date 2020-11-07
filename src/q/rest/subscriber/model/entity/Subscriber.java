@@ -29,6 +29,8 @@ public class Subscriber {
     private boolean admin;
     @JsonIgnore
     private String password;
+    @JsonIgnore
+    private char status;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name="sub_subscriber_general_role",
@@ -53,7 +55,7 @@ public class Subscriber {
         this.admin = true;
         this.password = sr.getPassword();
         this.roles.add(generalRole);
-
+        this.status = 'A';
     }
 
 
@@ -160,5 +162,13 @@ public class Subscriber {
 
     public void setRoles(Set<GeneralRole> roles) {
         this.roles = roles;
+    }
+
+    public char getStatus() {
+        return status;
+    }
+
+    public void setStatus(char status) {
+        this.status = status;
     }
 }

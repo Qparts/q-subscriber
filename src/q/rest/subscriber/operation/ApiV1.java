@@ -134,7 +134,7 @@ public class ApiV1 {
         dao.delete(verification);
         Subscriber subscriber = company.getSubscribers().iterator().next();
         subscriber = dao.find(Subscriber.class, subscriber.getId());
-        verifyLogin(subscriber, subscriber.getEmail(), ip);
+        verifyLogin(company, subscriber, subscriber.getEmail(), ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.status(200).entity(loginObject).build();
     }
@@ -313,7 +313,8 @@ public class ApiV1 {
         String email = map.get("email").trim().toLowerCase();
         String ip = map.get("ipAddress");
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
-        verifyLogin(subscriber, email, ip);
+        Company company = dao.find(Company.class, subscriber.getCompanyId());
+        verifyLogin(company, subscriber, email, ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
         return Response.ok().entity(loginObject).build();
     }
@@ -776,11 +777,14 @@ public class ApiV1 {
     }
 
 
-    private void verifyLogin(Subscriber subscriber, String email, String ip) {
+    private void verifyLogin(Company company, Subscriber subscriber, String email, String ip) {
+        if(company.getStatus() != 'A' || subscriber.getStatus() != 'A'){
+            throwError(404, "Invalid credentials");
+        }
         if (subscriber == null) {
             async.createLoginAttempt(email, 0, ip);
             throwError(404, "Invalid credentials");
-        } else {
+        } else if(company.getStatus() != 'A'){
             async.createLoginAttempt(email, subscriber.getId(), ip);
         }
     }
