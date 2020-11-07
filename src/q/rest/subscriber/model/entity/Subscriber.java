@@ -29,7 +29,6 @@ public class Subscriber {
     private boolean admin;
     @JsonIgnore
     private String password;
-    @JsonIgnore
     private char status;
 
     @ManyToMany(fetch = FetchType.EAGER)
