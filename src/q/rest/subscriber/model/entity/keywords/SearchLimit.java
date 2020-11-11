@@ -1,7 +1,4 @@
-package q.rest.subscriber.model.entity;
-
-import q.rest.subscriber.model.entity.role.general.GeneralRole;
-import q.rest.subscriber.model.entity.role.general.GeneralRoleActivity;
+package q.rest.subscriber.model.entity.keywords;
 
 import javax.persistence.*;
 import java.io.Serializable;

@@ -1,6 +1,6 @@
 package q.rest.subscriber.model;
 
-import q.rest.subscriber.model.entity.SearchKeyword;
+import q.rest.subscriber.model.entity.keywords.SearchKeyword;
 
 import java.util.List;
 

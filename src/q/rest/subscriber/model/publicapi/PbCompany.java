@@ -20,6 +20,7 @@ public class PbCompany {
     @JsonIgnore
     private char status;//A = active , I = inactive, Z = temporary created for atomicity
     @Temporal(TemporalType.TIMESTAMP)
+    @JsonIgnore
     private Date created;
     private int countryId;
     private int regionId;

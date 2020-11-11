@@ -8,6 +8,9 @@ import q.rest.subscriber.helper.KeyConstant;
 import q.rest.subscriber.helper.InternalAppRequester;
 import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
+import q.rest.subscriber.model.entity.keywords.SearchKeyword;
+import q.rest.subscriber.model.entity.keywords.SearchLimit;
+import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import q.rest.subscriber.model.publicapi.PbCompany;
@@ -345,6 +348,20 @@ public class ApiV1 {
         return Response.ok().build();
     }
 
+    @SubscriberJwt
+    @POST
+    @Path("replacement-search-keyword")
+    public Response searchReplacementKeyword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
+        SearchReplacementKeyword sk = new SearchReplacementKeyword();
+        sk.setCompanyId((int) map.get("companyId"));
+        sk.setSubscriberId((int) map.get("subscriberId"));
+        sk.setQuery((String) map.get("query"));
+        sk.setCreated(new Date());
+        sk.setFound((boolean) map.get("found"));
+        dao.persist(sk);
+        return Response.ok().build();
+    }
+
     @UserJwt
     @GET
     @Path("company-summary-report/{id}")
@@ -432,6 +449,17 @@ public class ApiV1 {
             return Response.status(403).build();
         }
         return Response.status(201).build();
+    }
+
+    @SubscriberJwt
+    @GET
+    @Path("replacement-search-count/company/{id}")
+    public Response verifyReplacementSearchCount(@PathParam(value = "id") int companyId) {
+        String sql = "select count(*) from SearchReplacementKeyword where found = :value0 and companyId = :value1";
+        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
+        Map<String,Integer> map = new HashMap<>();
+        map.put("count", number.intValue());
+        return Response.status(200).entity(map).build();
     }
 
     @SubscriberJwt

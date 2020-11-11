@@ -1,6 +1,7 @@
 package q.rest.subscriber.model.publicapi;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import q.rest.subscriber.model.entity.CompanyContact;
 
 import javax.persistence.*;
@@ -20,7 +21,9 @@ public class PbBranch {
     private int countryId;
     private int regionId;
     private int cityId;
+    @JsonIgnore
     private char status;
+    @JsonIgnore
     private String clientBranchId;
     private double longitude;
     private double latitude;

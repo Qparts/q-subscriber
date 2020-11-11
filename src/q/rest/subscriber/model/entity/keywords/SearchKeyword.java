@@ -1,4 +1,4 @@
-package q.rest.subscriber.model.entity;
+package q.rest.subscriber.model.entity.keywords;
 
 import javax.persistence.*;
 import java.io.Serializable;
