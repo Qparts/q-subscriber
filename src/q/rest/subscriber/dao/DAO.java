@@ -170,7 +170,7 @@ public class DAO {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T getNativeSingle(Class<T> klass, String sql) {
+    public <T> T findNative(Class<T> klass, String sql) {
         try {
             return (T) em.createNativeQuery(sql).getSingleResult();
         } catch (Exception e) {

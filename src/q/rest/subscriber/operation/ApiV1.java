@@ -502,6 +502,17 @@ public class ApiV1 {
         return Response.ok().entity(csc).build();
     }
 
+    @UserJwt
+    @GET
+    @Path("pull-chunk-size/company/{id}")
+    public Response getChunkSize(@PathParam(value = "id") int companyId){
+        String sql = "select pull_chunk_size from sub_company where id = " + companyId;
+        Number number = dao.findNative(Number.class, sql);
+        Map<String,Integer> map = new HashMap<>();
+        map.put("chunk", number.intValue());
+        return Response.status(200).entity(map).build();
+    }
+
 
     @UserJwt
     @POST
