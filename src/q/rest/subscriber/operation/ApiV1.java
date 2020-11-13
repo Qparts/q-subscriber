@@ -143,6 +143,19 @@ public class ApiV1 {
     }
 
 
+
+    @UserJwt
+    @GET
+    @Path("comments-history/year/{year}/month/{month}")
+    public Response getSmsHistory(@PathParam(value = "year") int year, @PathParam(value = "month") int month){
+        Date from = Helper.getFromDate(month, year);
+        Date to = Helper.getToDate(month, year);
+        String sql = "select b from Comment b where b.created between :value0 and :value1 order by b.created desc";
+        List<Comment> list = dao.getJPQLParams(Comment.class, sql, from , to);
+        return Response.ok().entity(list).build();
+    }
+
+
     @SubscriberJwt
     @POST
     @Path("request-verify")
