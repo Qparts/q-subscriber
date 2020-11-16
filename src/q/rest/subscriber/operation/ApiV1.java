@@ -834,10 +834,10 @@ public class ApiV1 {
             throwError(404, "Invalid credentials");
         }
         if (subscriber == null) {
-            async.createLoginAttempt(email, 0, ip);
+            async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
-        } else if(company.getStatus() != 'A'){
-            async.createLoginAttempt(email, subscriber.getId(), ip);
+        } else {
+            async.createLoginAttempt(email, subscriber.getId(), ip, true);
         }
     }
 

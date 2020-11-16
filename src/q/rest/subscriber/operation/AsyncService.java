@@ -76,14 +76,12 @@ public class AsyncService {
         }
         return null;
     }
-
-    @Asynchronous
-    public void createLoginAttempt(String username, int id, String ip) {
+    public void createLoginAttempt(String username, int subscriberId, String ip, boolean success){
         var loginAttempt = new LoginAttempt();
         loginAttempt.setUsername(username);
         loginAttempt.setCreated(new Date());
-        loginAttempt.setSuccess(id > 0);
-        loginAttempt.setSubscriberId(id);
+        loginAttempt.setSuccess(success);
+        loginAttempt.setSubscriberId(subscriberId);
         loginAttempt.setIp(ip);
         dao.persist(loginAttempt);
     }

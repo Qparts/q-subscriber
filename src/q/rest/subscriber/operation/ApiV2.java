@@ -265,10 +265,10 @@ public class ApiV2 {
 
     private void verifyLogin(Subscriber subscriber, String email, String ip) {
         if (subscriber == null) {
-            async.createLoginAttempt(email, 0, ip);
+            async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
         } else {
-            async.createLoginAttempt(email, subscriber.getId(), ip);
+            async.createLoginAttempt(email, subscriber.getId(), ip, true);
         }
     }
 
