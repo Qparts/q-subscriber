@@ -45,7 +45,8 @@ public class ApiV2 {
         String email = map.get("email").trim().toLowerCase();
         String ip = map.get("ipAddress");
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
-        verifyLogin(subscriber, email, ip);
+        Company company = dao.find(Company.class, subscriber.getCompanyId());
+        verifyLogin(company, subscriber, email, ip);
         PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
         String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
         loginObject.setRefreshJwt(refreshJwt);
@@ -68,17 +69,18 @@ public class ApiV2 {
     }
 
 
-//    @ValidApp
-  //  @POST
-    //@Path(value = "verify-signup")
-    //public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
-        /*
+    @ValidApp
+    @POST
+    @Path(value = "verify-signup")
+    public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
         WebApp webApp = getWebAppFromAuthHeader(header);
         String code = map.get("code");
-        String ip = map.get("ipAddress");
+        String email = map.get("email");
+        String ip = "from app";
         Date date = Helper.addMinutes(new Date(), -60);
-        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2";
-        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1);
+        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2 and b.signupRequestId in (" +
+                "select c.id from SignupRequest c where c.email = :value3)";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, email.trim().toLowerCase());
         verifyObjectFound(verification);
         SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
         verifyObjectFound(sr);
@@ -96,10 +98,12 @@ public class ApiV2 {
         Subscriber subscriber = company.getSubscribers().iterator().next();
         subscriber = dao.find(Subscriber.class, subscriber.getId());
         verifyLogin(company, subscriber, subscriber.getEmail(), ip);
-        Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
+        loginObject.setRefreshJwt(refreshJwt);
         return Response.status(200).entity(loginObject).build();
-         */
-    //}
+
+    }
 
     @POST
     @Path("refresh-token")
@@ -263,7 +267,10 @@ public class ApiV2 {
         return null;
     }
 
-    private void verifyLogin(Subscriber subscriber, String email, String ip) {
+    private void verifyLogin(Company company, Subscriber subscriber, String email, String ip) {
+        if(company.getStatus() != 'A' || subscriber.getStatus() != 'A'){
+            throwError(404, "Invalid credentials");
+        }
         if (subscriber == null) {
             async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
@@ -405,6 +412,13 @@ public class ApiV2 {
             String[] s = new String[]{sm.getName(), code};
             MessagingModel emailModel = new MessagingModel(null, sm.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
+        }
+    }
+
+
+    private void verifyObjectFound(Object object) {
+        if (object == null) {
+            throwError(404);
         }
     }
 

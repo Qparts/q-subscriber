@@ -126,4 +126,12 @@ public class PbCompany {
         this.subscribers = subscribers;
     }
 
+
+    public Set<PbSubscription> getSubscriptions() {
+        return subscriptions;
+    }
+
+    public void setSubscriptions(Set<PbSubscription> subscriptions) {
+        this.subscriptions = subscriptions;
+    }
 }
