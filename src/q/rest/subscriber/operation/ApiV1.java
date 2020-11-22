@@ -381,6 +381,8 @@ public class ApiV1 {
     public Response getCompanySummary(@PathParam(value = "id") int id) {
         String sql = "select b from SearchKeyword b where b.companyId =:value0 order by b.created desc";
         List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50, id);
+        sql = "select b from SearchReplacementKeyword b where b.companyId =:value0 order by b.created desc";
+        List<SearchReplacementKeyword> replacementKwds = dao.getJPQLParamsMax(SearchReplacementKeyword.class, sql, 50, id);
         sql = "select count(*) from SearchKeyword b where b.companyId =:value0";
         int totalSearches = dao.findJPQLParams(Number.class, sql, id).intValue();
         sql = "select to_char(z.date, 'Mon') as mon," +
@@ -404,6 +406,7 @@ public class ApiV1 {
         SubscriberSummary summary = new SubscriberSummary();
         summary.setMonthlySearches(monthly);
         summary.setTopKeywords(kwds);
+        summary.setTopReplacementsKeywords(replacementKwds);
         summary.setTotalSearches(totalSearches);
         return Response.ok().entity(summary).build();
     }
@@ -414,12 +417,16 @@ public class ApiV1 {
     public Response getHomeSummary() {
         String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(now() as date)";
         int searchKeywordsToday = dao.findJPQLParams(Number.class, sql).intValue();
+        sql = "select count(*) from SearchReplacementKeyword b where cast(b.created as date) = cast(now() as date)";
+        int searchReplacementsToday = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from Company c";
         int totalCompanies = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from Company c where c.id in (select c.companyId from SearchKeyword c where c.created > :value0)";
         int activeCompanies = dao.findJPQLParams(Number.class, sql, Helper.addDays(new Date(), -30)).intValue();
         sql = "select b from SearchKeyword b order by b.created desc";
         List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50);
+        sql = "select b from SearchReplacementKeyword b order by b.created desc";
+        List<SearchReplacementKeyword> replacementKwds = dao.getJPQLParamsMax(SearchReplacementKeyword.class, sql, 50);
         sql = "select b.id from Company b order by b.created desc";
         List<Integer> topCompaniesIds = dao.getJPQLParamsMax(Integer.class, sql, 10);
         sql = "select to_char(z.date, 'Mon') as mon," +
@@ -443,9 +450,11 @@ public class ApiV1 {
 
         SubscriberSummary summary = new SubscriberSummary();
         summary.setSearchesToday(searchKeywordsToday);
+        summary.setReplacementSearchesToday(searchReplacementsToday);
         summary.setTotalCompanies(totalCompanies);
         summary.setActiveCompanies(activeCompanies);
         summary.setTopKeywords(kwds);
+        summary.setTopReplacementsKeywords(replacementKwds);
         summary.setTopCompanies(topCompaniesIds);
         summary.setMonthlySearches(monthly);
         return Response.ok().entity(summary).build();

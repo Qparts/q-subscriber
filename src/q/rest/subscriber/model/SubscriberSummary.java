@@ -1,17 +1,36 @@
 package q.rest.subscriber.model;
 
 import q.rest.subscriber.model.entity.keywords.SearchKeyword;
+import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 
 import java.util.List;
 
 public class SubscriberSummary {
     private int searchesToday;
+    private int replacementSearchesToday;
     private int totalSearches;
     private int activeCompanies;
     private int totalCompanies;
     private List<SearchKeyword> topKeywords;
+    private List<SearchReplacementKeyword> topReplacementsKeywords;
     private List<Integer> topCompanies;
     private List<MonthlySearches> monthlySearches;
+
+    public int getReplacementSearchesToday() {
+        return replacementSearchesToday;
+    }
+
+    public void setReplacementSearchesToday(int replacementSearchesToday) {
+        this.replacementSearchesToday = replacementSearchesToday;
+    }
+
+    public List<SearchReplacementKeyword> getTopReplacementsKeywords() {
+        return topReplacementsKeywords;
+    }
+
+    public void setTopReplacementsKeywords(List<SearchReplacementKeyword> topReplacementsKeywords) {
+        this.topReplacementsKeywords = topReplacementsKeywords;
+    }
 
     public int getSearchesToday() {
         return searchesToday;
