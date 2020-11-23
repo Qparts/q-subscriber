@@ -447,7 +447,25 @@ public class ApiV1 {
                 monthly.add(ms);
             }
         }
+        sql = "select to_char(z.date, 'Mon') as mon," +
+                " extract(year from z.date) as yy," +
+                " count (z.*) as count" +
+                " from" +
+                " (select date_trunc('month', created) as date, count(*) as count" +
+                " from sub_replacement_search_keyword GROUP BY date_trunc('month', created) order by date desc limit 6)z order by z.date;";
 
+        List<MonthlySearches> replacementMonthly = new ArrayList<>();
+        List<Object> replacementSS = dao.getNative(sql);
+        for(Object o : replacementSS){
+            if (o instanceof Object[]) {
+                Object[] objArray = (Object[]) o;
+                String month = objArray[0].toString();
+                int year = ((Number) objArray[1]).intValue();
+                int count = ((Number) objArray[2]).intValue();
+                MonthlySearches ms = new MonthlySearches(month, year, count);
+                replacementMonthly.add(ms);
+            }
+        }
         SubscriberSummary summary = new SubscriberSummary();
         summary.setSearchesToday(searchKeywordsToday);
         summary.setReplacementSearchesToday(searchReplacementsToday);
@@ -457,6 +475,7 @@ public class ApiV1 {
         summary.setTopReplacementsKeywords(replacementKwds);
         summary.setTopCompanies(topCompaniesIds);
         summary.setMonthlySearches(monthly);
+        summary.setReplacementMonthlySearches(replacementMonthly);
         return Response.ok().entity(summary).build();
     }
 
@@ -591,6 +610,25 @@ public class ApiV1 {
         List<Map> kgs = new ArrayList<>();
         for (Date date : dates) {
             String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(:value0 as date)";
+            Number n = dao.findJPQLParams(Number.class, sql, date);
+            Map<String, Object> map = new HashMap<>();
+            map.put("count", n.intValue());
+            map.put("date", date.getTime());
+            kgs.add(map);
+        }
+        return Response.status(200).entity(kgs).build();
+    }
+
+    @UserJwt
+    @GET
+    @Path("search-replacement-activity/from/{from}/to/{to}")
+    public Response getVendorSearchReplacementKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong, @Context UriInfo info) {
+        Helper h = new Helper();
+        String excludeFriday = info.getQueryParameters().getFirst("exclude-friday");
+        List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong), excludeFriday != null);
+        List<Map> kgs = new ArrayList<>();
+        for (Date date : dates) {
+            String sql = "select count(*) from SearchReplacementKeyword b where cast(b.created as date) = cast(:value0 as date)";
             Number n = dao.findJPQLParams(Number.class, sql, date);
             Map<String, Object> map = new HashMap<>();
             map.put("count", n.intValue());

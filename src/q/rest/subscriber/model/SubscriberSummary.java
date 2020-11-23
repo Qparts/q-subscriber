@@ -15,6 +15,15 @@ public class SubscriberSummary {
     private List<SearchReplacementKeyword> topReplacementsKeywords;
     private List<Integer> topCompanies;
     private List<MonthlySearches> monthlySearches;
+    private List<MonthlySearches> replacementMonthlySearches;
+
+    public List<MonthlySearches> getReplacementMonthlySearches() {
+        return replacementMonthlySearches;
+    }
+
+    public void setReplacementMonthlySearches(List<MonthlySearches> replacementMonthlySearches) {
+        this.replacementMonthlySearches = replacementMonthlySearches;
+    }
 
     public int getReplacementSearchesToday() {
         return replacementSearchesToday;
