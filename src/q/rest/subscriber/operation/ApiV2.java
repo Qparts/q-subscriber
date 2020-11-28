@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import q.rest.subscriber.dao.DAO;
+import q.rest.subscriber.filter.annotation.SubscriberJwt;
 import q.rest.subscriber.filter.annotation.ValidApp;
 import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
@@ -139,12 +140,37 @@ public class ApiV2 {
 
     @POST
     @Path("logout")
-    //   @SubscriberJwt
+    @SubscriberJwt
     public Response logout(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int appCode = getAppCodeFromJWT(header);
         int subscriberID = getSubscriberFromJWT(header);
         killTokens(subscriberID, appCode);
         return Response.ok().build();
+    }
+
+
+
+    @SubscriberJwt
+    @GET
+    @Path("verify-product-search-count")
+    public Response verifySearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
+        int companyId = getCompanyFromJWT(header);
+        int subscriberId = getSubscriberFromJWT(header);
+        String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 13" +
+                "and ra.role_id in (" +
+                "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
+        Number n = dao.findNative(Number.class, sql);
+        //unlimited search = 13
+        if(n.intValue() > 0){
+            return Response.status(201).build();
+        }
+        sql = "select count(*) from SearchKeyword where found = :value0 and companyId = :value1" +
+                " and cast (created as date) = cast (now() as date)";
+        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
+        if (number.intValue() >= 10) {
+            return Response.status(403).build();
+        }
+        return Response.status(201).build();
     }
 
 
@@ -324,6 +350,13 @@ public class ApiV2 {
         String token = header.substring("Bearer".length()).trim();
         Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
         return Integer.parseInt(claims.get("sub").toString());
+    }
+
+
+    public int getCompanyFromJWT(String header) {
+        String token = header.substring("Bearer".length()).trim();
+        Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
+        return Integer.parseInt(claims.get("comp").toString());
     }
 
     public int getSubscriberFromJWTEvenIfExpired(String header) {

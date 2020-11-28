@@ -58,6 +58,17 @@ public class Subscriber {
     }
 
 
+    @JsonIgnore
+    public boolean hasAccess(int id) {
+        for (var role : roles) {
+            for (var ac : role.getActivities()) {
+                if(ac.getId() == id)
+                    return true;
+            }
+        }
+        return  false;
+    }
+
 
     public boolean isAdmin() {
         return admin;
