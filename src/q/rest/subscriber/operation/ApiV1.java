@@ -96,6 +96,7 @@ public class ApiV1 {
         subscriber.setAdmin(false);
         subscriber.setPassword(sr.getPassword());
         subscriber.setCompanyId(companyId);
+        subscriber.setStatus('A');
         //get general role id
         //get admin subscriber and copy its role
         Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
