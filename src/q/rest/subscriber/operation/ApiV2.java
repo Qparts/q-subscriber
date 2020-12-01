@@ -5,6 +5,7 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import q.rest.subscriber.dao.DAO;
 import q.rest.subscriber.filter.annotation.SubscriberJwt;
+import q.rest.subscriber.filter.annotation.UserSubscriberJwt;
 import q.rest.subscriber.filter.annotation.ValidApp;
 import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
@@ -67,6 +68,18 @@ public class ApiV2 {
         dao.persist(sv);
         sendMessagingNotification(sm, sv.getVerificationCode());
         return Response.status(200).build();
+    }
+
+
+    @GET
+    @Path("company/{id}")
+    @SubscriberJwt
+    public Response getCompany(@PathParam(value = "id") int id) {
+        PbCompany company = dao.find(PbCompany.class, id);
+        if (company == null) {
+            throwError(404);
+        }
+        return Response.status(200).entity(company).build();
     }
 
 
