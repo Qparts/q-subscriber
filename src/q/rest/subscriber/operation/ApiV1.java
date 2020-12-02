@@ -676,6 +676,7 @@ public class ApiV1 {
         return Response.ok().entity(map).build();
     }
 
+
     @POST
     @Path("search/company/labels")
     @UserJwt

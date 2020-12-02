@@ -82,6 +82,19 @@ public class ApiV2 {
         return Response.status(200).entity(company).build();
     }
 
+    @GET
+    @Path("companies/{ids}")
+    @SubscriberJwt
+    public Response getCompany(@PathParam(value = "ids") String ids) {
+        String[] idsArray = ids.split(",");
+        StringBuilder sql = new StringBuilder("select * from sub_company where id in (0");
+        for (String s : idsArray) {
+            sql.append(",").append(s);
+        }
+        sql.append(") order by id");
+        List<PbCompany> companies = dao.getNative(PbCompany.class, sql.toString());
+        return Response.status(200).entity(companies).build();
+    }
 
     @ValidApp
     @POST
@@ -210,7 +223,7 @@ public class ApiV2 {
     private String issueToken(int companyId, int userId, int appCode) {
         try {
             Date issued = new Date();
-            Date expire = Helper.addMinutes(issued, 10);
+            Date expire = Helper.addMinutes(issued, 60*24*7);
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
