@@ -58,18 +58,16 @@ public class ApiV2 {
     @POST
     @Path("signup")
     @ValidApp
-    public Response signup(SignupModel sm){
+    public Response signup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, SignupModel sm){
         verifyAvailability(sm.getEmail(), sm.getMobile());//returns 409
-        SignupRequest signupRequest = new SignupRequest(sm);
+        SignupRequest signupRequest = new SignupRequest(sm, getWebAppFromAuthHeader(header).getAppCode());
         dao.persist(signupRequest);
-        //generate code !
         String code = createVerificationCode();
         SubscriberVerification sv = new SubscriberVerification(signupRequest, sm.getCountryId() == 1 ? 'M' : 'E', code);
         dao.persist(sv);
         sendMessagingNotification(sm, sv.getVerificationCode());
         return Response.status(200).build();
     }
-
 
     @GET
     @Path("company/{id}")

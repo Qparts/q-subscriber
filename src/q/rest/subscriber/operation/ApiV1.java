@@ -115,7 +115,7 @@ public class ApiV1 {
     @ValidApp
     @POST
     @Path(value="verify-signup-before-approval")
-    public Response verifySignupToPending(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map){
+    public Response verifySignupToPending(Map<String, String> map){
         String code = map.get("code");
         String email = map.get("email").toLowerCase().trim();
         Date date = Helper.addMinutes(new Date(), -60);
@@ -131,6 +131,34 @@ public class ApiV1 {
         dao.delete(verification);
         dao.update(sr);
         async.informAdminsNewRegistration(sr.getCompanyName());
+        return Response.status(200).build();
+    }
+
+    @UserJwt
+    @GET
+    @Path("signup-requests/pending")
+    public Response getPendingSingupRequests(){
+        List<SignupRequest> requests = dao.getCondition(SignupRequest.class, "status", 'P');
+        return Response.status(200).entity(requests).build();
+    }
+
+
+    @POST
+    @UserJwt
+    @Path("approve-signup")
+    public Response approveSignup(Map<String,Integer> map){
+        int id = map.get("signupRequestsId");
+        SignupRequest sr = dao.find(SignupRequest.class, id);
+        Map<String, Integer> planIds = getBasicPlanId();
+        int planId = planIds.get("planId");
+        int durationId = planIds.get("durationId");
+        int roleId = planIds.get("roleId");
+        GeneralRole role = dao.find(GeneralRole.class, roleId);
+        char verificationMode = sr.isMobileVerified() ? 'M' : 'E';
+        Company company = new Company(sr, verificationMode, planId, durationId, role);
+        dao.persist(company);
+        sr.setStatus('C');
+        dao.update(sr);
         return Response.status(200).build();
     }
 
@@ -279,9 +307,10 @@ public class ApiV1 {
     @ValidApp
     @POST
     @Path(value = "signup-request")
-    public Response signup(SignupModel sm) {
+    public Response signup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header,  SignupModel sm) {
+        WebApp webApp = getWebAppFromAuthHeader(header);
         verifyAvailability(sm.getEmail(), sm.getMobile());//returns 409
-        SignupRequest signupRequest = new SignupRequest(sm);
+        SignupRequest signupRequest = new SignupRequest(sm, webApp.getAppCode());
         dao.persist(signupRequest);
         //generate code !
         String code = createVerificationCode();

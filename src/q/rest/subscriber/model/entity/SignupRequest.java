@@ -1,5 +1,6 @@
 package q.rest.subscriber.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import q.rest.subscriber.helper.Helper;
 import q.rest.subscriber.model.AddSubscriberModel;
 import q.rest.subscriber.model.SignupModel;
@@ -17,6 +18,7 @@ public class SignupRequest {
     private char signupType;//N = new signup from website , A = additional user added by company
     private String companyName;
     private int companyId;
+    @JsonIgnore
     private String password;
     private String name;
     private int countryId;
@@ -32,6 +34,7 @@ public class SignupRequest {
     private char status;//R = requested, C = Created, P = pending
     private Boolean mobileVerified;
     private Boolean emailVerified;
+    private int appCode;
 
     public Boolean isMobileVerified() {
         return mobileVerified;
@@ -52,7 +55,7 @@ public class SignupRequest {
     public SignupRequest() {
     }
 
-    public SignupRequest(SignupModel model) {
+    public SignupRequest(SignupModel model, int appCode) {
         this.companyName = model.getCompanyName();
         this.password = Helper.cypher(model.getPassword());
         this.name = model.getName();
@@ -66,6 +69,7 @@ public class SignupRequest {
         this.notes = model.getNotes();
         this.signupType = 'N';
         this.status = 'R';
+        this.appCode = appCode;
     }
 
     public SignupRequest(AddSubscriberModel model) {
@@ -208,5 +212,13 @@ public class SignupRequest {
 
     public void setCreatedBySubscriber(int createdBySubscriber) {
         this.createdBySubscriber = createdBySubscriber;
+    }
+
+    public int getAppCode() {
+        return appCode;
+    }
+
+    public void setAppCode(int appCode) {
+        this.appCode = appCode;
     }
 }
