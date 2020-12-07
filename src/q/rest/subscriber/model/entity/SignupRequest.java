@@ -29,7 +29,25 @@ public class SignupRequest {
     private int createdBy;
     private int createdBySubscriber;
     private String notes;
-    private char status;//R = requested, C = Created
+    private char status;//R = requested, C = Created, P = pending
+    private Boolean mobileVerified;
+    private Boolean emailVerified;
+
+    public Boolean isMobileVerified() {
+        return mobileVerified;
+    }
+
+    public void setMobileVerified(Boolean mobileVerified) {
+        this.mobileVerified = mobileVerified;
+    }
+
+    public Boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
 
     public SignupRequest() {
     }

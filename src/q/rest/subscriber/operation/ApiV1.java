@@ -114,6 +114,29 @@ public class ApiV1 {
 
     @ValidApp
     @POST
+    @Path(value="verify-signup-before-approval")
+    public Response verifySignupToPending(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map){
+        String code = map.get("code");
+        String email = map.get("email").toLowerCase().trim();
+        Date date = Helper.addMinutes(new Date(), -60);
+        String sql = "select b from SignupRequest b where b.created > :value0 and b.email = :value1";
+        SignupRequest sr = dao.findJPQLParams(SignupRequest.class, sql, date, email);
+        verifyObjectFound(sr);
+        sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and b.stage = :value2 and b.signupRequestId = :value3";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, sr.getId());
+        verifyObjectFound(verification);
+        sr.setStatus('P');//pending
+        sr.setEmailVerified(verification.getVerificationMode() == 'E');
+        sr.setMobileVerified(verification.getVerificationMode() == 'M');
+        dao.delete(verification);
+        dao.update(sr);
+        async.informAdminsNewRegistration(sr.getCompanyName());
+        return Response.status(200).build();
+    }
+
+    //verify signup and create company directly
+    @ValidApp
+    @POST
     @Path(value = "verify-signup")
     public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
         WebApp webApp = getWebAppFromAuthHeader(header);
@@ -893,6 +916,13 @@ public class ApiV1 {
     private void verifyObjectFound(Object object) {
         if (object == null) {
             throwError(404);
+        }
+    }
+
+
+    private void verifyObjectFound(Object ...objects) {
+        for(var ob : objects){
+            verifyObjectFound(ob);
         }
     }
 

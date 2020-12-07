@@ -87,6 +87,14 @@ public class AsyncService {
     }
 
     @Asynchronous
+    public void informAdminsNewRegistration(String companyname){
+        String mobile = "";
+        String body = "New signup in qvm needs approval: " + companyname;
+        MessagingModel smsModel = new MessagingModel(mobile, null, AppConstants.MESSAGING_PURPOSE_SIGNUP_ADMIN_NOTIFY, body);
+
+    }
+
+    @Asynchronous
     public void sendSms(MessagingModel smsModel) {
         Response r = InternalAppRequester.postSecuredRequest(AppConstants.SEND_SMS, smsModel);
         System.out.println("SMS Response " + r.getStatus());

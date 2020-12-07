@@ -15,7 +15,7 @@ public class SubscriberVerification {
     private int signupRequestId;//used for stage 1 and 3
     private int subscriberId;//used for stage 2
     private int companyId;//used for stage 3
-    private char verificationMode;
+    private char verificationMode;//M , E
     private String verificationCode;
     @Temporal(TemporalType.TIMESTAMP)
     private Date created;
@@ -104,5 +104,13 @@ public class SubscriberVerification {
 
     public void setSubscriberId(int subscriberId) {
         this.subscriberId = subscriberId;
+    }
+
+    public int getCompanyId() {
+        return companyId;
+    }
+
+    public void setCompanyId(int companyId) {
+        this.companyId = companyId;
     }
 }

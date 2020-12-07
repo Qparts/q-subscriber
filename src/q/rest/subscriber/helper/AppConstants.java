@@ -28,6 +28,7 @@ public class AppConstants {
     }
 
     public static final String MESSAGING_PURPOSE_SIGNUP = "signup";
+    public static final String MESSAGING_PURPOSE_SIGNUP_ADMIN_NOTIFY = "signup-admin-notify";
     public static final String MESSAGING_PURPOSE_API_TOKEN = "api-token";
     public static final String MESSAGING_PURPOSE_PASS_RESET = "password-reset";
     public static final String MESSAGING_PURPOSE_INVOICE = "subscription-invoice";
