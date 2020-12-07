@@ -438,6 +438,8 @@ public class ApiV1 {
         List<SearchReplacementKeyword> replacementKwds = dao.getJPQLParamsMax(SearchReplacementKeyword.class, sql, 50, id);
         sql = "select count(*) from SearchKeyword b where b.companyId =:value0";
         int totalSearches = dao.findJPQLParams(Number.class, sql, id).intValue();
+        sql = "select count(*) from SearchReplacementKeyword b where b.companyId =:value0";
+        int totalReplacementSearches = dao.findJPQLParams(Number.class, sql, id).intValue();
         sql = "select to_char(z.date, 'Mon') as mon," +
                 " extract(year from z.date) as yy," +
                 " count (z.*) as count" +
@@ -461,6 +463,7 @@ public class ApiV1 {
         summary.setTopKeywords(kwds);
         summary.setTopReplacementsKeywords(replacementKwds);
         summary.setTotalSearches(totalSearches);
+        summary.setTotalReplacementSearches(totalReplacementSearches);
         return Response.ok().entity(summary).build();
     }
 

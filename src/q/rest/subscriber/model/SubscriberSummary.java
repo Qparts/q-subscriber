@@ -9,6 +9,7 @@ public class SubscriberSummary {
     private int searchesToday;
     private int replacementSearchesToday;
     private int totalSearches;
+    private int totalReplacementSearches;
     private int activeCompanies;
     private int totalCompanies;
     private List<SearchKeyword> topKeywords;
@@ -16,6 +17,14 @@ public class SubscriberSummary {
     private List<Integer> topCompanies;
     private List<MonthlySearches> monthlySearches;
     private List<MonthlySearches> replacementMonthlySearches;
+
+    public int getTotalReplacementSearches() {
+        return totalReplacementSearches;
+    }
+
+    public void setTotalReplacementSearches(int totalReplacementSearches) {
+        this.totalReplacementSearches = totalReplacementSearches;
+    }
 
     public List<MonthlySearches> getReplacementMonthlySearches() {
         return replacementMonthlySearches;
