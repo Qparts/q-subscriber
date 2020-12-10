@@ -6,6 +6,7 @@ import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import javax.persistence.*;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -38,11 +39,27 @@ public class Subscriber {
     @OrderBy(value = "id")
     private Set<GeneralRole> roles = new HashSet<>();
 
-
     public Subscriber() {
     }
 
 
+    //used for adding non-admin subscriber to existing company
+    public Subscriber(int companyId, SignupRequest sr, Set<GeneralRole> roles) {
+        this.email = sr.getEmail();
+        this.mobile = sr.getMobile();
+        this.name = sr.getName();
+        this.created = new Date();
+        this.createdBy = sr.getCreatedBy();
+        this.emailVerified = sr.isEmailVerified();
+        this.mobileVerified = sr.isMobileVerified();
+        this.admin = false;
+        this.companyId = companyId;
+        this.password = sr.getPassword();
+        this.setRoles(roles);
+        this.status = 'A';
+    }
+
+    //used for creating admin
     public Subscriber(SignupRequest sr, char verificationMode, GeneralRole generalRole) {
         this.email = sr.getEmail();
         this.mobile = sr.getMobile();

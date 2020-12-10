@@ -31,7 +31,7 @@ public class SignupRequest {
     private int createdBy;
     private int createdBySubscriber;
     private String notes;
-    private char status;//R = requested, C = Created, P = pending
+    private char status;//R = requested, C = Created, P = pending, D = declined
     private Boolean mobileVerified;
     private Boolean emailVerified;
     private int appCode;

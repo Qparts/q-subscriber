@@ -142,25 +142,46 @@ public class ApiV1 {
         return Response.status(200).entity(requests).build();
     }
 
+    @PUT
+    @UserJwt
+    @Path("decline-signup")
+    public Response declineSignup(Map<String,Integer> map){
+        int id = map.get("signupRequestsId");
+        SignupRequest sr = dao.find(SignupRequest.class, id);
+        sr.setStatus('D');//declined
+        dao.update(sr);
+        return Response.status(200).build();
+    }
 
     @POST
     @UserJwt
     @Path("approve-signup")
     public Response approveSignup(Map<String,Integer> map){
         int id = map.get("signupRequestsId");
+        Integer companyId = map.get("companyId");
         SignupRequest sr = dao.find(SignupRequest.class, id);
-        Map<String, Integer> planIds = getBasicPlanId();
-        int planId = planIds.get("planId");
-        int durationId = planIds.get("durationId");
-        int roleId = planIds.get("roleId");
-        GeneralRole role = dao.find(GeneralRole.class, roleId);
-        char verificationMode = sr.isMobileVerified() ? 'M' : 'E';
-        Company company = new Company(sr, verificationMode, planId, durationId, role);
-        dao.persist(company);
+        if(companyId == null){
+            Map<String, Integer> planIds = getBasicPlanId();
+            int planId = planIds.get("planId");
+            int durationId = planIds.get("durationId");
+            int roleId = planIds.get("roleId");
+            GeneralRole role = dao.find(GeneralRole.class, roleId);
+            char verificationMode = sr.isMobileVerified() ? 'M' : 'E';
+            Company company = new Company(sr, verificationMode, planId, durationId, role);
+            dao.persist(company);
+            // TO DO: send notification
+        } else {
+            Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
+            Subscriber subscriber = new Subscriber(companyId, sr, admin.getRoles());
+            dao.persist(subscriber);
+            // TO DO: send notification
+        }
         sr.setStatus('C');
         dao.update(sr);
         return Response.status(200).build();
     }
+
+
 
     //verify signup and create company directly
     @ValidApp
