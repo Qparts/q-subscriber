@@ -15,6 +15,7 @@ import q.rest.subscriber.model.MessagingModel;
 import q.rest.subscriber.model.SignupModel;
 import q.rest.subscriber.model.WebApp;
 import q.rest.subscriber.model.entity.*;
+import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
@@ -192,6 +193,28 @@ public class ApiV2 {
                 " and cast (created as date) = cast (now() as date)";
         Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
         if (number.intValue() >= 10) {
+            return Response.status(403).build();
+        }
+        return Response.status(201).build();
+    }
+
+    @SubscriberJwt
+    @GET
+    @Path("verify-product-replacement-search-count")
+    public Response verifyReplacementSearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
+        int companyId = getCompanyFromJWT(header);
+        int subscriberId = getSubscriberFromJWT(header);
+        String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 15" +
+                "and ra.role_id in (" +
+                "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
+        Number n = dao.findNative(Number.class, sql);
+        //unlimited search = 13
+        if(n.intValue() > 0){
+            return Response.status(201).build();
+        }
+        sql = "select count(*) from SearchReplacementKeyword where found = :value0 and companyId = :value1";
+        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
+        if (number.intValue() >= 5) {
             return Response.status(403).build();
         }
         return Response.status(201).build();
