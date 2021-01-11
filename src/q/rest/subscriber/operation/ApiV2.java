@@ -5,18 +5,18 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import q.rest.subscriber.dao.DAO;
 import q.rest.subscriber.filter.annotation.SubscriberJwt;
-import q.rest.subscriber.filter.annotation.UserSubscriberJwt;
 import q.rest.subscriber.filter.annotation.ValidApp;
 import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
 import q.rest.subscriber.helper.InternalAppRequester;
 import q.rest.subscriber.helper.KeyConstant;
+import q.rest.subscriber.model.AddSubscriberModel;
 import q.rest.subscriber.model.MessagingModel;
 import q.rest.subscriber.model.SignupModel;
 import q.rest.subscriber.model.WebApp;
 import q.rest.subscriber.model.entity.*;
-import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
+import q.rest.subscriber.model.publicapi.PbBranch;
 import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
@@ -168,9 +168,95 @@ public class ApiV2 {
     @SubscriberJwt
     public Response logout(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int appCode = getAppCodeFromJWT(header);
-        int subscriberID = getSubscriberFromJWT(header);
-        killTokens(subscriberID, appCode);
+        int subscriberId = Helper.getSubscriberFromJWT(header);
+        killTokens(subscriberId, appCode);
         return Response.ok().build();
+    }
+
+    @POST
+    @Path("branch")
+    @SubscriberJwt
+    public Response createBranch(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Branch branch) {
+        int companyId = Helper.getCompanyFromJWT(header);
+        int subscriberId = Helper.getSubscriberFromJWT(header);
+        branch.setCompanyId(companyId);
+        branch.setCreated(new Date());
+        branch.setNameAr(branch.getName());
+        branch.setCreatedBySubscriber(subscriberId);
+        branch.setStatus('A');
+        dao.persist(branch);
+        PbBranch pbBranch = dao.find(PbBranch.class, branch.getId());
+        return Response.status(200).entity(pbBranch).build();
+    }
+
+    @SubscriberJwt
+    @POST
+    @Path("subscriber")
+    public Response addNewSubscriber(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, AddSubscriberModel model) {
+        verifyAvailability(model.getEmail(), model.getMobile());//returns 409
+        int companyId = Helper.getCompanyFromJWT(header);
+        int subscriberId = Helper.getSubscriberFromJWT(header);
+        model.setCompanyId(companyId);
+        model.setCreatedBySubscriber(subscriberId);
+        SignupRequest sr = new SignupRequest(model);
+        dao.persist(sr);
+        String code = createVerificationCode();
+        SubscriberVerification sv = new SubscriberVerification(sr, model.getCountryId() == 1 ? 'M' : 'E', code, model.getCompanyId());
+        dao.persist(sv);
+        if (model.getCountryId() == 1) {
+            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+            async.sendSms(smsModel);
+        } else {
+            String[] s = new String[]{model.getName(), sv.getVerificationCode()};
+            MessagingModel emailModel = new MessagingModel(null, model.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
+            async.sendEmail(emailModel);
+        }
+        Map<String, String> map = new HashMap<String, String>();
+        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+        return Response.status(200).entity(map).build();
+    }
+
+    @SubscriberJwt
+    @PUT
+    @Path("verify-subscriber")
+    public Response verifyAdditionalSubscriber(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
+        String code = (String) map.get("code");
+        int companyId = Helper.getCompanyFromJWT(header);
+        Date date = Helper.addMinutes(new Date(), -60);
+        String sql = "select b from SubscriberVerification b " +
+                " where b.verificationCode = :value0 " +
+                " and b.created > :value1 " +
+                " and b.stage = :value2 " +
+                " and b.companyId = :value3";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 3, companyId);
+        verifyObjectFound(verification);
+        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
+        Subscriber subscriber = new Subscriber();
+        subscriber.setEmail(sr.getEmail());
+        subscriber.setMobile(sr.getMobile());
+        subscriber.setName(sr.getName());
+        subscriber.setCreated(new Date());
+        subscriber.setCreatedBy(sr.getCreatedBy());
+        subscriber.setEmailVerified(verification.getVerificationMode() == 'E');
+        subscriber.setMobileVerified(verification.getVerificationMode() == 'M');
+        subscriber.setAdmin(false);
+        subscriber.setPassword(sr.getPassword());
+        subscriber.setCompanyId(companyId);
+        subscriber.setStatus('A');
+        //get general role id
+        //get admin subscriber and copy its role
+        Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
+        for (var role : admin.getRoles()) {
+            GeneralRole gr = dao.find(GeneralRole.class, role.getId());
+            subscriber.getRoles().add(gr);
+        }
+        //subscriber.setRoles(admin.getRoles());
+        dao.persist(subscriber);
+        dao.delete(verification);
+        sr.setStatus('C');
+        dao.update(sr);
+        PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
+        return Response.status(200).entity(pbSubscriber).build();
     }
 
 
@@ -179,8 +265,8 @@ public class ApiV2 {
     @GET
     @Path("verify-product-search-count")
     public Response verifySearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
-        int companyId = getCompanyFromJWT(header);
-        int subscriberId = getSubscriberFromJWT(header);
+        int companyId = Helper.getCompanyFromJWT(header);
+        int subscriberId = Helper.getSubscriberFromJWT(header);
         String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 13" +
                 "and ra.role_id in (" +
                 "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
@@ -202,8 +288,8 @@ public class ApiV2 {
     @GET
     @Path("verify-product-replacement-search-count")
     public Response verifyReplacementSearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
-        int companyId = getCompanyFromJWT(header);
-        int subscriberId = getSubscriberFromJWT(header);
+        int companyId = Helper.getCompanyFromJWT(header);
+        int subscriberId = Helper.getSubscriberFromJWT(header);
         String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 15" +
                 "and ra.role_id in (" +
                 "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
@@ -391,19 +477,6 @@ public class ApiV2 {
         throw new WebApplicationException(
                 Response.status(code).entity(msg).build()
         );
-    }
-
-    public int getSubscriberFromJWT(String header) {
-        String token = header.substring("Bearer".length()).trim();
-        Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
-        return Integer.parseInt(claims.get("sub").toString());
-    }
-
-
-    public int getCompanyFromJWT(String header) {
-        String token = header.substring("Bearer".length()).trim();
-        Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
-        return Integer.parseInt(claims.get("comp").toString());
     }
 
     public int getSubscriberFromJWTEvenIfExpired(String header) {

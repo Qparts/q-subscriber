@@ -83,7 +83,7 @@ public class SignupRequest {
         this.notes = model.getNotes();
         this.signupType = 'A';
         this.status = 'R';
-
+        this.companyId = model.getCompanyId();
     }
 
     public int getId() {

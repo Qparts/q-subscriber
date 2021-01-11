@@ -1,5 +1,8 @@
 package q.rest.subscriber.helper;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -19,6 +22,21 @@ public class Helper {
     private static final String NUMBER = "0123456789";
 
     private static final String SALT = CHAR_LOWER + CHAR_UPPER + NUMBER;
+
+
+
+    public static int getSubscriberFromJWT(String header) {
+        String token = header.substring("Bearer".length()).trim();
+        Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
+        return Integer.parseInt(claims.get("sub").toString());
+    }
+
+
+    public static int getCompanyFromJWT(String header) {
+        String token = header.substring("Bearer".length()).trim();
+        Claims claims = Jwts.parserBuilder().setSigningKey(KeyConstant.PUBLIC_KEY).build().parseClaimsJws(token).getBody();
+        return Integer.parseInt(claims.get("comp").toString());
+    }
 
     public List<Date> getAllDatesBetween(Date from, Date to, boolean excludeFriday){
         from = new Date(from.getTime());
