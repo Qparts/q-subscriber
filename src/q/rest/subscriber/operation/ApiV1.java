@@ -1219,6 +1219,51 @@ public class ApiV1 {
         }
     }
 
+    @UserJwt
+    @POST
+    @Path("merge")
+    public Response mergeSubscriptions(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+        int mainId = map.get("mainId");
+        int secId = map.get("secondaryId");
+        int createdBy = map.get("createdBy");
+        Company main = dao.find(Company.class, mainId);
+        Company sec = dao.find(Company.class, secId);
+        for(Subscriber s : sec.getSubscribers()){
+            s.setCompanyId(main.getId());
+            s.setAdmin(false);
+            s.setRoles(main.getAdminSubscriber().getRoles());
+            dao.update(s);
+        }
+        for(Subscription s : sec.getSubscriptions()){
+          dao.delete(s);
+        }
+        for(Branch b : sec.getBranches()){
+            for(CompanyContact cc : b.getContacts()){
+                dao.delete(cc);
+            }
+            dao.delete(b);
+        }
+        for(Comment comment : sec.getComments()){
+            comment.setCompanyId(main.getId());
+            comment.setComment("[from merged account ]" + comment.getComment());
+            dao.update(comment);
+        }
+        Comment comment = new Comment();
+        comment.setComment("[Merged Company ID " + sec.getId() + "]");
+        comment.setCompanyId(main.getId());
+        comment.setStatus('A');
+        comment.setCreated(new Date());
+        comment.setCreatedBy(createdBy);
+        dao.persist(comment);
+        String sql = "update sub_search_keyword set company_id = " + main.getId() + " where company_id = "  + sec.getId();
+        dao.updateNative(sql);
+        String sql2 = "update sub_replacement_search_keyword set company_id = " + main.getId() + " where company_id = "  + sec.getId();
+        dao.updateNative(sql2);
+        String sql3 = "delete from sub_company where id = " + sec.getId();
+        dao.updateNative(sql3);
+        return Response.status(200).build();
+    }
+
 
     @UserSubscriberJwt
     @POST
@@ -1260,6 +1305,8 @@ public class ApiV1 {
         async.sendInvoiceEmail(premium, updated, header);
         return Response.ok().entity(updated).build();
     }
+
+
 
 
     public void throwError(int code) {
