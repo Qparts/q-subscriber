@@ -1220,6 +1220,30 @@ public class ApiV1 {
     }
 
     @UserJwt
+    @PUT
+    @Path("subscriber")
+    public Response editSubscriber(Map<String,Object> map){
+        int id = (int) map.get("id");
+        String email = (String) map.get("email");
+        String mobile = (String) map.get("mobile");
+        String name = (String) map.get("name");
+        Subscriber subscriber = dao.find(Subscriber.class, id);
+        if(name.trim().length() > 0) {
+            subscriber.setName(name);
+        }
+        if(!mobile.equals(subscriber.getMobile())) {
+            subscriber.setMobile(mobile);
+            subscriber.setMobileVerified(false);
+        }
+        if(!email.equals(subscriber.getEmail())) {
+            subscriber.setEmail(email);
+            subscriber.setEmailVerified(false);
+        }
+        dao.update(subscriber);
+        return Response.status(200).build();
+    }
+
+    @UserJwt
     @POST
     @Path("merge")
     public Response mergeSubscriptions(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
