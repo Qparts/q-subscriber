@@ -1231,12 +1231,12 @@ public class ApiV1 {
         if(name.trim().length() > 0) {
             subscriber.setName(name);
         }
-        if(!mobile.equals(subscriber.getMobile())) {
-            subscriber.setMobile(mobile);
+        if(!mobile.trim().equals(subscriber.getMobile().trim())) {
+            subscriber.setMobile(mobile.trim());
             subscriber.setMobileVerified(false);
         }
-        if(!email.equals(subscriber.getEmail())) {
-            subscriber.setEmail(email);
+        if(!email.toLowerCase().trim().equals(subscriber.getEmail().trim().toLowerCase())) {
+            subscriber.setEmail(email.toLowerCase().trim());
             subscriber.setEmailVerified(false);
         }
         dao.update(subscriber);

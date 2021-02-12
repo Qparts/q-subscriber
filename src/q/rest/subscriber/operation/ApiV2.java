@@ -189,6 +189,18 @@ public class ApiV2 {
         return Response.status(200).entity(pbBranch).build();
     }
 
+    @GET
+    @SubscriberJwt
+    @Path("branches/ids")
+    public Response getBranchIds(@HeaderParam(HttpHeaders.AUTHORIZATION) String header){
+        int companyId = Helper.getCompanyFromJWT(header);
+        String sql = "select b.id from Branch b where companyId = :value0";
+        List<Integer> ints = dao.getJPQLParams(Integer.class, sql, companyId);
+        Map<String,Object> map = new HashMap<>();
+        map.put("branchIds", ints);
+        return Response.status(200).entity(map).build();
+    }
+
     @SubscriberJwt
     @POST
     @Path("subscriber")
