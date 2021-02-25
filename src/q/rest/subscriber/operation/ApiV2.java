@@ -342,7 +342,8 @@ public class ApiV2 {
     private String issueToken(int companyId, int userId, int appCode) {
         try {
             Date issued = new Date();
-            Date expire = Helper.addMinutes(issued, 60*24*7);
+//            Date expire = Helper.addMinutes(issued, 60*24*7);
+            Date expire = Helper.addMinutes(issued, 5);
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
