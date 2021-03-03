@@ -172,9 +172,14 @@ public class ApiV1 {
             // TO DO: send notification
         } else {
             Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
-            Subscriber subscriber = new Subscriber(companyId, sr, admin.getRoles());
+            Set<GeneralRole> generalRoles = new HashSet<>();
+            for (var role : admin.getRoles()) {
+                GeneralRole gr = dao.find(GeneralRole.class, role.getId());
+                generalRoles.add(gr);
+            }
+            Subscriber subscriber = new Subscriber(companyId, sr, generalRoles);
             dao.persist(subscriber);
-            // TO DO: send notification
+            //TO DO: send notification
         }
         sr.setStatus('C');
         dao.update(sr);

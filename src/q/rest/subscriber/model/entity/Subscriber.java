@@ -59,6 +59,8 @@ public class Subscriber {
         this.status = 'A';
     }
 
+
+
     //used for creating admin
     public Subscriber(SignupRequest sr, char verificationMode, GeneralRole generalRole) {
         this.email = sr.getEmail();
