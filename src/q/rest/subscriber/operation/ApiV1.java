@@ -513,7 +513,7 @@ public class ApiV1 {
         List<Integer> topCompaniesIds = dao.getJPQLParamsMax(Integer.class, sql, 10);
         sql = "select to_char(z.date, 'Mon') as mon," +
                 " extract(year from z.date) as yy," +
-                " count (z.*) as count" +
+                " z.count as count " +
                 " from" +
                 " (select date_trunc('month', created) as date, count(*) as count" +
                 " from sub_search_keyword GROUP BY date_trunc('month', created) order by date desc limit 6)z order by z.date;";
