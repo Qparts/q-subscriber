@@ -39,6 +39,13 @@ public class ApiV2 {
     @EJB
     private AsyncService async;
 
+    @GET
+    @Path("/sompak")
+    public String ltest(){
+        return dao.find(Subscriber.class, 1).getName();
+    }
+
+
     @POST
     @Path("login")
     @ValidApp
