@@ -57,6 +57,7 @@ public class ApiV2 {
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         verifyLogin(company, subscriber, email, ip);
+        verifyQStock(webApp, company);
         PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
         String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
         loginObject.setRefreshJwt(refreshJwt);
@@ -349,8 +350,8 @@ public class ApiV2 {
     private String issueToken(int companyId, int userId, int appCode) {
         try {
             Date issued = new Date();
-//            Date expire = Helper.addMinutes(issued, 60*24*7);
-            Date expire = Helper.addMinutes(issued, 5);
+            Date expire = Helper.addMinutes(issued, 60*24*7);
+ //           Date expire = Helper.addMinutes(issued, 5);
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
@@ -455,6 +456,15 @@ public class ApiV2 {
             throwError(404, "Invalid credentials");
         } else {
             async.createLoginAttempt(email, subscriber.getId(), ip, true);
+        }
+    }
+
+    private void verifyQStock(WebApp webApp, Company company) {
+        if(webApp.getAppCode() == 6 && webApp.getAppName().equals("QStock")) {
+            //this is q stock
+            if(company.getBranches().isEmpty()) {
+                throwError(401, "Company Not Activated");
+            }
         }
     }
 
