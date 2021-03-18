@@ -22,6 +22,7 @@ public class PbCompany {
     @Temporal(TemporalType.TIMESTAMP)
     @JsonIgnore
     private Date created;
+    private boolean profileCompleted;
     private int countryId;
     private int regionId;
     private int cityId;
@@ -133,5 +134,13 @@ public class PbCompany {
 
     public void setSubscriptions(Set<PbSubscription> subscriptions) {
         this.subscriptions = subscriptions;
+    }
+
+    public boolean isProfileCompleted() {
+        return profileCompleted;
+    }
+
+    public void setProfileCompleted(boolean profileCompleted) {
+        this.profileCompleted = profileCompleted;
     }
 }
