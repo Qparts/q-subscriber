@@ -1,21 +1,24 @@
 package q.rest.subscriber.model.publicapi;
 
+import q.rest.subscriber.model.view.CompanyView;
+
 import java.util.List;
 
 public class PbLoginObject {
-    private PbCompany company;
+    private CompanyView company;
+    //private PbCompany company;
     private PbSubscriber subscriber;
     private String jwt;
     private String refreshJwt;
     private List<Integer> activities;
 
-    public PbLoginObject(PbCompany company, PbSubscriber subscriber, String jwt) {
+    public PbLoginObject(CompanyView company, PbSubscriber subscriber, String jwt) {
         this.company = company;
         this.subscriber = subscriber;
         this.jwt = jwt;
     }
 
-    public PbLoginObject(PbCompany company, PbSubscriber subscriber, String jwt, String refreshJwt, List<Integer> activities) {
+    public PbLoginObject(CompanyView company, PbSubscriber subscriber, String jwt, String refreshJwt, List<Integer> activities) {
         this.company = company;
         this.subscriber = subscriber;
         this.jwt = jwt;
@@ -47,11 +50,11 @@ public class PbLoginObject {
         this.jwt = jwt;
     }
 
-    public PbCompany getCompany() {
+    public CompanyView getCompany() {
         return company;
     }
 
-    public void setCompany(PbCompany company) {
+    public void setCompany(CompanyView company) {
         this.company = company;
     }
 

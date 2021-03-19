@@ -17,6 +17,7 @@ import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
 import q.rest.subscriber.model.reduced.CompanyReduced;
+import q.rest.subscriber.model.view.CompanyView;
 
 import javax.ejb.EJB;
 import javax.ws.rs.*;
@@ -935,10 +936,10 @@ public class ApiV1 {
     private Object getLoginObject(Subscriber subscriber, int appCode) {
         subscriber = updateSubscriptionStatus(subscriber);
         if (appCode == 6) {
-            PbCompany pbCompany = dao.find(PbCompany.class, subscriber.getCompanyId());
+            CompanyView cview = dao.find(CompanyView.class, subscriber.getCompanyId());
             PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
             String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
-            return new PbLoginObject(pbCompany, pbSubscriber, jwt);
+            return new PbLoginObject(cview, pbSubscriber, jwt);
         }
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);

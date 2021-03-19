@@ -20,6 +20,7 @@ import q.rest.subscriber.model.publicapi.PbBranch;
 import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
+import q.rest.subscriber.model.view.CompanyView;
 
 import javax.ejb.EJB;
 import javax.ws.rs.*;
@@ -57,7 +58,6 @@ public class ApiV2 {
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         verifyLogin(company, subscriber, email, ip);
-        verifyQStock(webApp, company);
         PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
         String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
         loginObject.setRefreshJwt(refreshJwt);
@@ -194,7 +194,86 @@ public class ApiV2 {
         branch.setStatus('A');
         dao.persist(branch);
         PbBranch pbBranch = dao.find(PbBranch.class, branch.getId());
+        makeBranchDefaultIfSingle(pbBranch);
         return Response.status(200).entity(pbBranch).build();
+    }
+
+    @Path("default-policy")
+    @POST
+    @SubscriberJwt
+    public Response makeDefaultPolicy(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        int branchId = map.get("policyId");
+        String sql = "insert into sub_company_profile_settings (company_id, default_policy_id) values (" + companyId + ", " + branchId +")" +
+                "on conflict (company_id) do update set default_policy_id = " + branchId;
+        dao.insertNative(sql);
+        return Response.status(200).build();
+    }
+
+
+    @Path("default-customer")
+    @POST
+    @SubscriberJwt
+    public Response makeDefaultCustomr(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        int customerId = map.get("customerId");
+        String sql = "insert into sub_company_profile_settings (company_id, default_customer_id) values (" + companyId + ", " + customerId +")" +
+                "on conflict (company_id) do update set default_customer_id = " + customerId;
+        dao.insertNative(sql);
+        return Response.status(200).build();
+    }
+
+
+    @SubscriberJwt
+    @Path("default-branch")
+    @PUT
+    public Response makeBranchDefault(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        int branchId = map.get("branchId");
+        this.makeDefaultBranch(companyId, branchId);
+        return Response.status(200).build();
+    }
+
+
+    @SubscriberJwt
+    @PUT
+    @Path("setting-variables")
+    public Response getPolicies(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Object> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        String vatNumber = (String) map.get("vatNumber");
+        if(vatNumber != null) {
+            String quoted = "'" + vatNumber + "'";
+            String sql = "insert into sub_company_profile_settings (company_id, vat_number) values (" + companyId + ", " + quoted + ")" +
+                    "on conflict (company_id) do update set vat_number = " + quoted;
+            dao.insertNative(sql);
+        }
+        Double purchaseTax = (Double) map.get("defaultPurchaseTax");
+        if(purchaseTax != null) {
+            String sql = "insert into sub_company_profile_settings (company_id, default_purchase_tax) values (" + companyId + ", " + purchaseTax + ")" +
+                    "on conflict (company_id) do update set default_purchase_tax = " + purchaseTax;
+            dao.insertNative(sql);
+
+        }
+        Double salesTax = (Double) map.get("defaultSalesTax");
+        if(salesTax != null) {
+            String sql = "insert into sub_company_profile_settings (company_id, default_sales_tax) values (" + companyId + ", " + salesTax + ")" +
+                    "on conflict (company_id) do update set default_sales_tax = " + salesTax;
+            dao.insertNative(sql);
+        }
+        return Response.status(200).build();
+    }
+
+    private void makeBranchDefaultIfSingle(PbBranch pbBranch){
+       List<PbBranch> branches = dao.getCondition(PbBranch.class, "companyId", pbBranch.getCompanyId());
+       if(branches.size() == 1){
+            makeDefaultBranch(pbBranch.getCompanyId(), pbBranch.getId());
+       }
+    }
+
+    private void makeDefaultBranch(int companyId, int branchId){
+        String sql = "insert into sub_company_profile_settings (company_id, default_branch_id) values (" + companyId + ", " + branchId +")" +
+                "on conflict (company_id) do update set default_branch_id = " + branchId;
+        dao.insertNative(sql);
     }
 
     @GET
@@ -329,11 +408,11 @@ public class ApiV2 {
 
     private PbLoginObject getLoginObject(Subscriber subscriber, int appCode) {
         subscriber = updateSubscriptionStatus(subscriber);
-        PbCompany pbCompany = dao.find(PbCompany.class, subscriber.getCompanyId());
+        CompanyView companyView = dao.find(CompanyView.class, subscriber.getCompanyId());
         PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);//short one
         List<Integer> activities = extractActivities(pbSubscriber);
-        return new PbLoginObject(pbCompany, pbSubscriber, jwt, null, activities);
+        return new PbLoginObject(companyView, pbSubscriber, jwt, null, activities);
     }
 
     private List<Integer> extractActivities(PbSubscriber subscriber) {
@@ -459,16 +538,6 @@ public class ApiV2 {
         }
     }
 
-    private void verifyQStock(WebApp webApp, Company company) {
-        if(webApp.getAppCode() == 6 && webApp.getAppName().equals("QStock")) {
-            //this is q stock
-            if(company.getBranches().isEmpty()) {
-                throwError(401, "Company Not Activated");
-            }
-        }
-    }
-
-
     private WebApp getWebAppFromAuthHeader(String authHeader) {
         try {
             String appSecret = authHeader.substring("Bearer".length()).trim();
@@ -478,7 +547,6 @@ public class ApiV2 {
             return null;
         }
     }
-
 
     // retrieves app object from app secret
     private WebApp getWebAppFromSecret(String secret) throws Exception {
@@ -585,7 +653,6 @@ public class ApiV2 {
         } while (!available);
         return code;
     }
-
 
     private void sendMessagingNotification(SignupModel sm, String code){
         if (sm.getCountryId() == 1) {
