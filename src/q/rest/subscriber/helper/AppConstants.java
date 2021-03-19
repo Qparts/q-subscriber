@@ -5,6 +5,7 @@ public class AppConstants {
     private final static String MESSAGING_SERVICE = SysProps.getValue("messagingService");
     private final static String PLAN_SERVICE = SysProps.getValue("planService");
     private final static String INVOICE_SERVICE = SysProps.getValue("invoiceService").replace("/v2/", "/v3/");
+    private final static String CUSTOMER_SERVICE = SysProps.getValue("customerService");
 
     public final static String INTERNAL_APP_SECRET = "INTERNAL_APP";
     public static final String ADMIN_EMAIL = "fareed@qetaa.com";
@@ -21,11 +22,13 @@ public class AppConstants {
         return PLAN_SERVICE + "names/" + planId;
     }
 
-
-
     public static String getSalesInvoice(int salesId){
         return INVOICE_SERVICE + "invoice/sales/" + salesId;
     }
+
+
+
+    public static final String POST_CREATE_DEFAULT_CASH_CUSTOMER = CUSTOMER_SERVICE + "default-cash-customer";
 
     public static final String MESSAGING_PURPOSE_SIGNUP = "signup";
     public static final String MESSAGING_PURPOSE_SIGNUP_ADMIN_NOTIFY = "signup-admin-notify";

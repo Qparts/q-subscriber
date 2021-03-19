@@ -13,7 +13,6 @@ import q.rest.subscriber.model.entity.keywords.SearchLimit;
 import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
-import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
 import q.rest.subscriber.model.reduced.CompanyReduced;
@@ -22,6 +21,7 @@ import q.rest.subscriber.model.view.CompanyView;
 import javax.ejb.EJB;
 import javax.ws.rs.*;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.*;
 import java.util.*;
@@ -162,6 +162,7 @@ public class ApiV1 {
         Integer companyId = map.get("companyId");
         SignupRequest sr = dao.find(SignupRequest.class, id);
         if(companyId == null){
+            //new company
             Map<String, Integer> planIds = getBasicPlanId();
             int planId = planIds.get("planId");
             int durationId = planIds.get("durationId");
@@ -170,7 +171,8 @@ public class ApiV1 {
             char verificationMode = sr.isMobileVerified() ? 'M' : 'E';
             Company company = new Company(sr, verificationMode, planId, durationId, role);
             dao.persist(company);
-            // TO DO: send notification
+            //create default customer
+            createDefaultCashCustomer(company.getId());
         } else {
             Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
             Set<GeneralRole> generalRoles = new HashSet<>();
@@ -185,6 +187,23 @@ public class ApiV1 {
         sr.setStatus('C');
         dao.update(sr);
         return Response.status(200).build();
+    }
+
+    private void createDefaultCashCustomer(int companyId){
+        try {
+            Map<String,Integer> map = new HashMap<String, Integer>();
+            map.put("companyId", companyId);
+            Response r = InternalAppRequester.postSecuredRequest(AppConstants.POST_CREATE_DEFAULT_CASH_CUSTOMER, map);
+            if(r.getStatus() == 200){
+                Map<String,Integer> remap = r.readEntity(Map.class);
+                int customerId = remap.get("customerId");
+                String sql = "insert into sub_company_profile_settings (company_id, default_customer_id) values (" + companyId + ", " + customerId + ")" +
+                        "on conflict (company_id) do update set default_customer_id = " + customerId;
+                dao.insertNative(sql);
+            } else r.close();
+        }catch (Exception ex){
+
+        }
     }
 
 
@@ -1378,4 +1397,13 @@ public class ApiV1 {
         Response r = b.get();
         return r;
     }
+
+
+    public <T> Response postSecuredRequest(String link, T t, String authHeader) {
+        Invocation.Builder b = ClientBuilder.newClient().target(link).request();
+        b.header(HttpHeaders.AUTHORIZATION, authHeader);
+        Response r = b.post(Entity.entity(t, "application/json"));// not secured
+        return r;
+    }
+
 }

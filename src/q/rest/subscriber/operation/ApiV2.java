@@ -78,6 +78,7 @@ public class ApiV2 {
         return Response.status(200).build();
     }
 
+
     @GET
     @Path("company/{id}")
     @SubscriberJwt
@@ -105,39 +106,61 @@ public class ApiV2 {
 
     @ValidApp
     @POST
-    @Path(value = "verify-signup")
-    public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
-        WebApp webApp = getWebAppFromAuthHeader(header);
+    @Path(value="verify-signup")
+    public Response verifySignupToPending(Map<String, String> map){
         String code = map.get("code");
-        String email = map.get("email");
-        String ip = "from app";
+        String email = map.get("email").toLowerCase().trim();
         Date date = Helper.addMinutes(new Date(), -60);
-        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2 and b.signupRequestId in (" +
-                "select c.id from SignupRequest c where c.email = :value3)";
-        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, email.trim().toLowerCase());
-        verifyObjectFound(verification);
-        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
+        String sql = "select b from SignupRequest b where b.created > :value0 and b.email = :value1";
+        SignupRequest sr = dao.findJPQLParams(SignupRequest.class, sql, date, email);
         verifyObjectFound(sr);
-        //create company
-        Map<String, Integer> planIds = getBasicPlanId();
-        int planId = planIds.get("planId");
-        int durationId = planIds.get("durationId");
-        int roleId = planIds.get("roleId");
-        GeneralRole role = dao.find(GeneralRole.class, roleId);
-        Company company = new Company(sr, verification.getVerificationMode(), planId, durationId, role);
-        dao.persist(company);
-        sr.setStatus('C');
-        dao.update(sr);
+        sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and b.stage = :value2 and b.signupRequestId = :value3";
+        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, sr.getId());
+        verifyObjectFound(verification);
+        sr.setStatus('P');//pending
+        sr.setEmailVerified(verification.getVerificationMode() == 'E');
+        sr.setMobileVerified(verification.getVerificationMode() == 'M');
         dao.delete(verification);
-        Subscriber subscriber = company.getSubscribers().iterator().next();
-        subscriber = dao.find(Subscriber.class, subscriber.getId());
-        verifyLogin(company, subscriber, subscriber.getEmail(), ip);
-        PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
-        String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
-        loginObject.setRefreshJwt(refreshJwt);
-        return Response.status(200).entity(loginObject).build();
-
+        dao.update(sr);
+        async.informAdminsNewRegistration(sr.getCompanyName());
+        return Response.status(200).build();
     }
+
+//    @ValidApp
+//    @POST
+//    @Path(value = "verify-signup")
+//    public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+//        WebApp webApp = getWebAppFromAuthHeader(header);
+//        String code = map.get("code");
+//        String email = map.get("email");
+//        String ip = "from app";
+//        Date date = Helper.addMinutes(new Date(), -60);
+//        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2 and b.signupRequestId in (" +
+//                "select c.id from SignupRequest c where c.email = :value3)";
+//        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, email.trim().toLowerCase());
+//        verifyObjectFound(verification);
+//        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
+//        verifyObjectFound(sr);
+//        //create company
+//        Map<String, Integer> planIds = getBasicPlanId();
+//        int planId = planIds.get("planId");
+//        int durationId = planIds.get("durationId");
+//        int roleId = planIds.get("roleId");
+//        GeneralRole role = dao.find(GeneralRole.class, roleId);
+//        Company company = new Company(sr, verification.getVerificationMode(), planId, durationId, role);
+//        dao.persist(company);
+//        sr.setStatus('C');
+//        dao.update(sr);
+//        dao.delete(verification);
+//        Subscriber subscriber = company.getSubscribers().iterator().next();
+//        subscriber = dao.find(Subscriber.class, subscriber.getId());
+//        verifyLogin(company, subscriber, subscriber.getEmail(), ip);
+//        PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
+//        String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
+//        loginObject.setRefreshJwt(refreshJwt);
+//        return Response.status(200).entity(loginObject).build();
+//
+//    }
 
     @POST
     @Path("refresh-token")
