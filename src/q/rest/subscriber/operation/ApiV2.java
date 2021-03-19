@@ -222,7 +222,7 @@ public class ApiV2 {
     }
 
     @Path("default-policy")
-    @POST
+    @PUT
     @SubscriberJwt
     public Response makeDefaultPolicy(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
         int companyId = Helper.getCompanyFromJWT(header);
@@ -235,7 +235,7 @@ public class ApiV2 {
 
 
     @Path("default-customer")
-    @POST
+    @PUT
     @SubscriberJwt
     public Response makeDefaultCustomr(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
         int companyId = Helper.getCompanyFromJWT(header);
