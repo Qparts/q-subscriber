@@ -227,7 +227,6 @@ public class ApiV2 {
     @PUT
     @SubscriberJwt
     public Response makeDefaultPolicy(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
-        System.out.println("received at sub");
         int companyId = Helper.getCompanyFromJWT(header);
         int branchId = map.get("policyId");
         String sql = "insert into sub_company_profile_settings (company_id, default_policy_id) values (" + companyId + ", " + branchId +")" +

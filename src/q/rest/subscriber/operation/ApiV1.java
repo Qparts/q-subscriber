@@ -172,7 +172,7 @@ public class ApiV1 {
             Company company = new Company(sr, verificationMode, planId, durationId, role);
             dao.persist(company);
             //create default customer
-            createDefaultCashCustomer(company.getId());
+            createDefaultCashCustomer(company.getId(), company.getCountryId());
         } else {
             Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
             Set<GeneralRole> generalRoles = new HashSet<>();
@@ -189,10 +189,11 @@ public class ApiV1 {
         return Response.status(200).build();
     }
 
-    private void createDefaultCashCustomer(int companyId){
+    private void createDefaultCashCustomer(int companyId, int countryId){
         try {
             Map<String,Integer> map = new HashMap<String, Integer>();
             map.put("companyId", companyId);
+            map.put("countryId", countryId);
             Response r = InternalAppRequester.postSecuredRequest(AppConstants.POST_CREATE_DEFAULT_CASH_CUSTOMER, map);
             if(r.getStatus() == 200){
                 Map<String,Integer> remap = r.readEntity(Map.class);
