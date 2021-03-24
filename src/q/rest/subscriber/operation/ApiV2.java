@@ -380,9 +380,10 @@ public class ApiV2 {
         sr.setStatus('C');
         dao.update(sr);
         PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
+        pbSubscriber.setDefaultBranch(sr.getDefaultBranch());
+        dao.update(pbSubscriber);
         return Response.status(200).entity(pbSubscriber).build();
     }
-
 
 
     @SubscriberJwt

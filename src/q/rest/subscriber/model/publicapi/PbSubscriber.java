@@ -33,6 +33,15 @@ public class PbSubscriber {
             inverseJoinColumns = @JoinColumn(name="role_id"))
     @OrderBy(value = "id")
     private Set<GeneralRole> roles = new HashSet<>();
+    private Integer defaultBranch;
+
+    public Integer getDefaultBranch() {
+        return defaultBranch;
+    }
+
+    public void setDefaultBranch(Integer defaultBranch) {
+        this.defaultBranch = defaultBranch;
+    }
 
     public boolean isAdmin() {
         return admin;

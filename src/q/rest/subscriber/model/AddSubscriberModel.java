@@ -10,6 +10,15 @@ public class AddSubscriberModel {
     private int createdBy;
     private int createdBySubscriber;
     private String notes;
+    private int defaultBranch;
+
+    public int getDefaultBranch() {
+        return defaultBranch;
+    }
+
+    public void setDefaultBranch(int defaultBranch) {
+        this.defaultBranch = defaultBranch;
+    }
 
     public int getCountryId() {
         return countryId;

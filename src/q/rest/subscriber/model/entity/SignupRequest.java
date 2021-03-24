@@ -35,6 +35,17 @@ public class SignupRequest {
     private Boolean mobileVerified;
     private Boolean emailVerified;
     private int appCode;
+    private Integer defaultBranch;
+
+
+
+    public Integer getDefaultBranch() {
+        return defaultBranch;
+    }
+
+    public void setDefaultBranch(Integer defaultBranch) {
+        this.defaultBranch = defaultBranch;
+    }
 
     public Boolean isMobileVerified() {
         return mobileVerified;
@@ -84,6 +95,7 @@ public class SignupRequest {
         this.signupType = 'A';
         this.status = 'R';
         this.companyId = model.getCompanyId();
+        this.defaultBranch = model.getDefaultBranch();
     }
 
     public int getId() {
