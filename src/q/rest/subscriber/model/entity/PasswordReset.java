@@ -1,5 +1,7 @@
 package q.rest.subscriber.model.entity;
 
+import q.rest.subscriber.helper.Helper;
+
 import javax.persistence.*;
 import java.util.Date;
 
@@ -18,6 +20,16 @@ public class PasswordReset {
     @Temporal(TemporalType.TIMESTAMP)
     private Date expire;
     private char status;
+
+    public PasswordReset(){}
+
+    public PasswordReset(int subscriberId, String token, int expireMinutes){
+        this.created = new Date();
+        this.subscriberId = subscriberId;
+        this.token = token;
+        this.expire = Helper.addMinutes(created, expireMinutes);
+        this.status = 'R';//requested
+    }
 
     public int getId() {
         return id;

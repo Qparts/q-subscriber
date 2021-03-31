@@ -1059,7 +1059,7 @@ public class ApiV1 {
         Subscriber subscriber = dao.findJPQLParams(Subscriber.class, sql, value);
         verifyObjectFound(subscriber);
         String token = createPasswordResetObject(subscriber);
-        String[] values = new String[]{token, subscriber.getName()};
+        String[] values = new String[]{token, subscriber.getName(), "qvm"};
         MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
         async.sendEmail(emailModel);
         return Response.status(200).build();

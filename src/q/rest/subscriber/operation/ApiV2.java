@@ -10,10 +10,7 @@ import q.rest.subscriber.helper.AppConstants;
 import q.rest.subscriber.helper.Helper;
 import q.rest.subscriber.helper.InternalAppRequester;
 import q.rest.subscriber.helper.KeyConstant;
-import q.rest.subscriber.model.AddSubscriberModel;
-import q.rest.subscriber.model.MessagingModel;
-import q.rest.subscriber.model.SignupModel;
-import q.rest.subscriber.model.WebApp;
+import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import q.rest.subscriber.model.publicapi.PbBranch;
@@ -56,8 +53,7 @@ public class ApiV2 {
         String email = map.get("email").trim().toLowerCase();
         String ip = map.get("ipAddress");
         Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
-        Company company = dao.find(Company.class, subscriber.getCompanyId());
-        verifyLogin(company, subscriber, email, ip);
+        verifyLogin(subscriber, email, ip);
         PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
         String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
         loginObject.setRefreshJwt(refreshJwt);
@@ -126,41 +122,72 @@ public class ApiV2 {
         return Response.status(200).build();
     }
 
-//    @ValidApp
-//    @POST
-//    @Path(value = "verify-signup")
-//    public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
-//        WebApp webApp = getWebAppFromAuthHeader(header);
-//        String code = map.get("code");
-//        String email = map.get("email");
-//        String ip = "from app";
-//        Date date = Helper.addMinutes(new Date(), -60);
-//        String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and stage = :value2 and b.signupRequestId in (" +
-//                "select c.id from SignupRequest c where c.email = :value3)";
-//        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, email.trim().toLowerCase());
-//        verifyObjectFound(verification);
-//        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
-//        verifyObjectFound(sr);
-//        //create company
-//        Map<String, Integer> planIds = getBasicPlanId();
-//        int planId = planIds.get("planId");
-//        int durationId = planIds.get("durationId");
-//        int roleId = planIds.get("roleId");
-//        GeneralRole role = dao.find(GeneralRole.class, roleId);
-//        Company company = new Company(sr, verification.getVerificationMode(), planId, durationId, role);
-//        dao.persist(company);
-//        sr.setStatus('C');
-//        dao.update(sr);
-//        dao.delete(verification);
-//        Subscriber subscriber = company.getSubscribers().iterator().next();
-//        subscriber = dao.find(Subscriber.class, subscriber.getId());
-//        verifyLogin(company, subscriber, subscriber.getEmail(), ip);
-//        PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
-//        String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
-//        loginObject.setRefreshJwt(refreshJwt);
-//        return Response.status(200).entity(loginObject).build();
-//
-//    }
+    @ValidApp
+    @POST
+    @Path("reset-password")
+    public Response requestPasswordReset(Map<String, String> map) {
+        String email = map.get("email").trim().toLowerCase();
+        String sql = "select b from Subscriber b where b.email =:value0";
+        Subscriber subscriber = dao.findJPQLParams(Subscriber.class, sql, email);
+        verifyObjectFound(subscriber);
+
+        String token = createPasswordResetObject(subscriber);
+        String[] values = new String[]{token, subscriber.getName(), "qstock"};//website is q-stock
+        MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
+        async.sendEmail(emailModel);
+
+        return Response.status(200).build();
+    }
+
+
+    @ValidApp
+    @PUT
+    @Path("reset-password")
+    public Response resetPassword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        String token = map.get("code");
+        String password = map.get("newPassword");
+        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
+        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
+
+        verifyObjectFound(pr);
+        Subscriber subscriber = dao.find(Subscriber.class, pr.getSubscriberId());
+        subscriber.setPassword(Helper.cypher(password));
+        subscriber.setEmailVerified(true);
+        dao.update(subscriber);
+        pr.setStatus('V');
+        dao.update(pr);
+        return Response.status(200).build();
+    }
+
+
+    @ValidApp
+    @GET
+    @Path("reset-password/{token}")
+    public Response verifyPasswordReset(@PathParam(value = "token") String token) {
+        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
+        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
+        verifyObjectFound(pr);
+        return Response.status(200).build();
+    }
+
+
+    private String createPasswordResetObject(Subscriber subscriber) {
+        String code = "";
+        boolean available = false;
+        do {
+            code = Helper.getRandomString(20);
+            String sql = "select b from PasswordReset b where b.token = :value0 and b.expire >= :value1 and status =:value2";
+            List<PasswordReset> l = dao.getJPQLParams(PasswordReset.class, sql, code, new Date(), 'R');
+            if (l.isEmpty())
+                available = true;
+
+        } while (!available);
+
+        int expireMinutes = 60 * 24 * 14;
+        PasswordReset ev = new PasswordReset(subscriber.getId(), code, expireMinutes);
+        dao.persist(ev);
+        return code;
+    }
 
     @POST
     @Path("refresh-token")
@@ -552,11 +579,13 @@ public class ApiV2 {
         return null;
     }
 
-    private void verifyLogin(Company company, Subscriber subscriber, String email, String ip) {
-        if(company.getStatus() != 'A' || subscriber.getStatus() != 'A'){
+    private void verifyLogin(Subscriber subscriber, String email, String ip) {
+        if(subscriber == null || subscriber.getStatus() != 'A'){
+            async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
         }
-        if (subscriber == null) {
+        Company company = dao.find(Company.class, subscriber.getCompanyId());
+        if(company.getStatus() != 'A'){
             async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
         } else {
