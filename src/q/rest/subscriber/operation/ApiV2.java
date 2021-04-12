@@ -60,6 +60,9 @@ public class ApiV2 {
         return Response.ok().entity(loginObject).build();
     }
 
+
+
+
     @POST
     @Path("signup")
     @ValidApp
@@ -249,7 +252,17 @@ public class ApiV2 {
     }
 
 
-    //check here
+    @PUT
+    @Path("invoice-template")
+    @SubscriberJwt
+    public Response updateInvoiceTemplate(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,String> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        String template = map.get("invoiceTemplate");
+        String sql = "update sub_company_profile_settings set invoice_template = '"+template+"' where company_id = " + companyId;
+        dao.updateNative(sql);
+        return Response.status(200).build();
+    }
+
     @Path("default-policy")
     @PUT
     @SubscriberJwt

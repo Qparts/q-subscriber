@@ -26,6 +26,8 @@ public class CompanyView {
     private Double defaultSalesTax;//mandatory
     private Double defaultPurchaseTax;//mandatory
     private String vatNumber;//mandatory
+    private Boolean logoUploaded;
+    private String invoiceTemplate;
 
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinColumn(name = "company_id")
@@ -37,7 +39,6 @@ public class CompanyView {
     @JoinColumn(name="company_id")
     @OrderBy("startDate desc")
     private Set<PbSubscription> subscriptions = new HashSet<>();
-    private Boolean logoUploaded;
 
     public boolean isProfileCompleted(){
         return defaultBranchId != null
@@ -166,5 +167,13 @@ public class CompanyView {
 
     public void setLogoUploaded(Boolean logoUploaded) {
         this.logoUploaded = logoUploaded;
+    }
+
+    public String getInvoiceTemplate() {
+        return invoiceTemplate;
+    }
+
+    public void setInvoiceTemplate(String invoiceTemplate) {
+        this.invoiceTemplate = invoiceTemplate;
     }
 }
