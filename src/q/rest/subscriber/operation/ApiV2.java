@@ -12,6 +12,7 @@ import q.rest.subscriber.helper.InternalAppRequester;
 import q.rest.subscriber.helper.KeyConstant;
 import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
+import q.rest.subscriber.model.entity.role.company.CompanyRole;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import q.rest.subscriber.model.publicapi.PbBranch;
 import q.rest.subscriber.model.publicapi.PbCompany;
@@ -263,6 +264,19 @@ public class ApiV2 {
         return Response.status(200).build();
     }
 
+
+    @PUT
+    @Path("logo-upload")
+    @SubscriberJwt
+    public Response updateLogoUploaded(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Boolean> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        Boolean uploaded = map.get("logoUploaded");
+        String sql = "update sub_company_profile_settings set logo_uploaded = "+uploaded+" where company_id = " + companyId;
+        dao.updateNative(sql);
+        return Response.status(200).build();
+    }
+
+
     @Path("default-policy")
     @PUT
     @SubscriberJwt
@@ -275,6 +289,15 @@ public class ApiV2 {
         return Response.status(200).build();
     }
 
+    @Path("company-role")
+    @POST
+    @SubscriberJwt
+    public Response createCompanyRole(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, CompanyRole role){
+        int companyId = Helper.getCompanyFromJWT(header);
+        role.setCompanyId(companyId);
+        dao.persist(role);
+        return Response.status(200).build();
+    }
 
     @Path("default-customer")
     @PUT
@@ -298,6 +321,8 @@ public class ApiV2 {
         this.makeDefaultBranch(companyId, branchId);
         return Response.status(200).build();
     }
+
+
 
 
     @SubscriberJwt
