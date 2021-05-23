@@ -28,6 +28,7 @@ public class CompanyView {
     private String vatNumber;//mandatory
     private Boolean logoUploaded;
     private String invoiceTemplate;
+    private String defaultCurrency;
 
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinColumn(name = "company_id")
@@ -171,6 +172,14 @@ public class CompanyView {
 
     public String getInvoiceTemplate() {
         return invoiceTemplate;
+    }
+
+    public String getDefaultCurrency() {
+        return defaultCurrency;
+    }
+
+    public void setDefaultCurrency(String defaultCurrency) {
+        this.defaultCurrency = defaultCurrency;
     }
 
     public void setInvoiceTemplate(String invoiceTemplate) {

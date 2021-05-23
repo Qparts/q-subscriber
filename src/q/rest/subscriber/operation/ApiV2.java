@@ -265,6 +265,19 @@ public class ApiV2 {
     }
 
 
+
+    @PUT
+    @Path("default-currency")
+    @SubscriberJwt
+    public Response updateDefaultCurrency(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,String> map){
+        int companyId = Helper.getCompanyFromJWT(header);
+        String currency = map.get("currency");
+        String sql = "update sub_company_profile_settings set default_currency = '"+currency+"' where company_id = " + companyId;
+        dao.updateNative(sql);
+        return Response.status(200).build();
+    }
+
+
     @PUT
     @Path("logo-upload")
     @SubscriberJwt
