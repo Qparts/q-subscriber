@@ -265,7 +265,6 @@ public class ApiV2 {
     }
 
 
-
     @PUT
     @Path("default-currency")
     @SubscriberJwt

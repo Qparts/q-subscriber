@@ -1319,40 +1319,71 @@ public class ApiV1 {
     @POST
     @Path("subscribe")
     public Response createSubscription(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, SubscribeModel model) {
+        System.out.println(1);
         Company company = dao.find(Company.class, model.getCompanyId());
+        System.out.println(2);
         Subscription futureSubscription = company.getFutureSubscription();
+        System.out.println(3);
         Subscription premium = new Subscription();
+        System.out.println(4);
         premium.setPlanId(model.getPlanId());
+        System.out.println(5);
         premium.setDurationId(model.getDurationId());
+        System.out.println(6);
         premium.setCreatedBySubscriber(model.getCreatedBySubscriber());
+        System.out.println(7);
         premium.setCreated(new Date());
+        System.out.println(8);
         premium.setSalesId(model.getSalesId());
+        System.out.println(9);
         if (futureSubscription == null) {
+            System.out.println(10);
             Subscription activeSubscription = company.getActiveSubscription();
+            System.out.println(11);
             if (activeSubscription.getStatus() == 'B') {
                 //upgrade to premium
+                System.out.println(12);
                 premium.setStatus('A');
+                System.out.println(13);
                 premium.setStartDate(new Date());
+                System.out.println(14);
                 premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+                System.out.println(15);
             } else if (activeSubscription.getStatus() == 'A') {
                 //add a future subscription
+                System.out.println(16);
                 premium.setStatus('F');
+                System.out.println(17);
                 premium.setStartDate(activeSubscription.getEndDate());
+                System.out.println(18);
                 premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+                System.out.println(19);
             }
         } else {
+            System.out.println(20);
             //deal with it later
             premium.setStatus('F');
+            System.out.println(21);
             premium.setStartDate(futureSubscription.getEndDate());
+            System.out.println(22);
             premium.setEndDate(Helper.addDays(premium.getStartDate(), model.getActualDays()));
+            System.out.println(23);
         }
+        System.out.println(24);
         company.getSubscriptions().add(premium);
+        System.out.println(25);
         int roleId = getPlanRoleId(model.getPlanId(), header);
+        System.out.println(26);
         GeneralRole gr = dao.find(GeneralRole.class, roleId);
+        System.out.println(27);
         company.updateSubscribersRoles(gr);
+        System.out.println(28);
         dao.update(company);
+        System.out.println(29);
         Company updated = dao.find(Company.class, company.getId());
+        System.out.println(30);
         async.sendInvoiceEmail(premium, updated, header);
+        System.out.println(31);
         return Response.ok().entity(updated).build();
     }
 
