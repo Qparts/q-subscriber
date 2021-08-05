@@ -14,10 +14,7 @@ import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
 import q.rest.subscriber.model.entity.role.company.CompanyRole;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
-import q.rest.subscriber.model.publicapi.PbBranch;
-import q.rest.subscriber.model.publicapi.PbCompany;
-import q.rest.subscriber.model.publicapi.PbLoginObject;
-import q.rest.subscriber.model.publicapi.PbSubscriber;
+import q.rest.subscriber.model.publicapi.*;
 import q.rest.subscriber.model.view.CompanyView;
 
 import javax.ejb.EJB;
@@ -89,6 +86,29 @@ public class ApiV2 {
         }
         return Response.status(200).entity(company).build();
     }
+
+    @GET
+    @SubscriberJwt
+    @Path("company/search-name/{name}")
+    public Response getCompanyByName(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "name") String name){
+        int companyId = Helper.getCompanyFromJWT(header);
+        name = "%" + name.toLowerCase().trim() + "%";
+        String sql = "select b from PbCompanyVisible b where b.id != :value0" +
+                " and lower(b.name) like :value1" +
+                " and lower(b.nameAr) like :value1";
+        var companies = dao.getJPQLParams(PbCompanyVisible.class, sql, companyId, name);
+        return Response.status(200).entity(companies).build();
+    }
+
+    @GET
+    @SubscriberJwt
+    @Path("company/{id}/subscribers")
+    public Response getCompanySubscribers(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "id") int targetCompanyId){
+        String sql = "SELECT b from PbSubscriberVisible b where b.company.id = :value0";
+        var subscribers  = dao.getJPQLParams(PbSubscriberVisible.class, sql, targetCompanyId);
+        return Response.status(200).entity(subscribers).build();
+    }
+
 
     @GET
     @Path("companies/{ids}")
@@ -333,6 +353,7 @@ public class ApiV2 {
         this.makeDefaultBranch(companyId, branchId);
         return Response.status(200).build();
     }
+
 
 
 
