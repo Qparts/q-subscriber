@@ -3,7 +3,7 @@ package q.rest.subscriber.operation;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
-import q.rest.subscriber.dao.DAO;
+import q.rest.subscriber.dao.DaoApi;
 import q.rest.subscriber.filter.annotation.SubscriberJwt;
 import q.rest.subscriber.filter.annotation.ValidApp;
 import q.rest.subscriber.helper.AppConstants;
@@ -13,9 +13,7 @@ import q.rest.subscriber.helper.KeyConstant;
 import q.rest.subscriber.model.*;
 import q.rest.subscriber.model.entity.*;
 import q.rest.subscriber.model.entity.role.company.CompanyRole;
-import q.rest.subscriber.model.entity.role.general.GeneralRole;
 import q.rest.subscriber.model.publicapi.*;
-import q.rest.subscriber.model.view.CompanyView;
 
 import javax.ejb.EJB;
 import javax.ws.rs.*;
@@ -31,16 +29,9 @@ import java.util.*;
 @Produces(MediaType.APPLICATION_JSON)
 public class ApiV2 {
     @EJB
-    private DAO dao;
-    @EJB
     private AsyncService async;
-
-    @GET
-    @Path("/sompak")
-    public String ltest(){
-        return dao.find(Subscriber.class, 1).getName();
-    }
-
+    @EJB
+    private DaoApi daoApi;
 
     @POST
     @Path("login")
@@ -50,7 +41,7 @@ public class ApiV2 {
         String password = Helper.cypher(map.get("password"));
         String email = map.get("email").trim().toLowerCase();
         String ip = map.get("ipAddress");
-        Subscriber subscriber = dao.findTwoConditions(Subscriber.class, "email", "password", email, password);
+        Subscriber subscriber = daoApi.findSubscriber(email, password);
         verifyLogin(subscriber, email, ip);
         PbLoginObject loginObject = getLoginObject(subscriber, webApp.getAppCode());
         String refreshJwt = issueRefreshToken(subscriber.getCompanyId(), subscriber.getId(), webApp.getAppCode());//long one
@@ -66,12 +57,10 @@ public class ApiV2 {
     @ValidApp
     public Response signup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, SignupModel sm){
         verifyAvailability(sm.getEmail(), sm.getMobile());//returns 409
-        SignupRequest signupRequest = new SignupRequest(sm, getWebAppFromAuthHeader(header).getAppCode());
-        dao.persist(signupRequest);
-        String code = createVerificationCode();
-        SubscriberVerification sv = new SubscriberVerification(signupRequest, sm.getCountryId() == 1 ? 'M' : 'E', code);
-        dao.persist(sv);
-        sendMessagingNotification(sm, sv.getVerificationCode());
+        var appCode = getWebAppFromAuthHeader(header).getAppCode();
+        var signupRequest = daoApi.createSignupRequest(sm, appCode);
+        var code = daoApi.createAndGetVerificationCode(signupRequest, sm.getCountryId());
+        sendMessagingNotification(sm, code);
         return Response.status(200).build();
     }
 
@@ -80,10 +69,8 @@ public class ApiV2 {
     @Path("company/{id}")
     @SubscriberJwt
     public Response getCompany(@PathParam(value = "id") int id) {
-        PbCompany company = dao.find(PbCompany.class, id);
-        if (company == null) {
-            throwError(404);
-        }
+        var company = daoApi.findPbCompany(id);
+        if (company == null) throwError(404);
         return Response.status(200).entity(company).build();
     }
 
@@ -92,11 +79,7 @@ public class ApiV2 {
     @Path("company/search-name/{name}")
     public Response getCompanyByName(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "name") String name){
         int companyId = Helper.getCompanyFromJWT(header);
-        name = "%" + name.toLowerCase().trim() + "%";
-        String sql = "select b from PbCompanyVisible b where b.id != :value0" +
-                " and lower(b.name) like :value1" +
-                " and lower(b.nameAr) like :value1";
-        var companies = dao.getJPQLParams(PbCompanyVisible.class, sql, companyId, name);
+        var companies = daoApi.searchCompaniesByName(name, companyId);
         return Response.status(200).entity(companies).build();
     }
 
@@ -104,23 +87,15 @@ public class ApiV2 {
     @SubscriberJwt
     @Path("company/{id}/subscribers")
     public Response getCompanySubscribers(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "id") int targetCompanyId){
-        String sql = "SELECT b from PbSubscriberVisible b where b.company.id = :value0";
-        var subscribers  = dao.getJPQLParams(PbSubscriberVisible.class, sql, targetCompanyId);
+        var subscribers  =  daoApi.getCompanyVisibleSubscriber(targetCompanyId);
         return Response.status(200).entity(subscribers).build();
     }
-
 
     @GET
     @Path("companies/{ids}")
     @SubscriberJwt
-    public Response getCompany(@PathParam(value = "ids") String ids) {
-        String[] idsArray = ids.split(",");
-        StringBuilder sql = new StringBuilder("select * from sub_company where id in (0");
-        for (String s : idsArray) {
-            sql.append(",").append(s);
-        }
-        sql.append(") order by id");
-        List<PbCompany> companies = dao.getNative(PbCompany.class, sql.toString());
+    public Response getCompanies(@PathParam(value = "ids") String ids) {
+        var companies = daoApi.getCompaniesByIds(ids);
         return Response.status(200).entity(companies).build();
     }
 
@@ -131,18 +106,16 @@ public class ApiV2 {
         String code = map.get("code");
         String email = map.get("email").toLowerCase().trim();
         Date date = Helper.addMinutes(new Date(), -60);
-        String sql = "select b from SignupRequest b where b.created > :value0 and b.email = :value1";
-        SignupRequest sr = dao.findJPQLParams(SignupRequest.class, sql, date, email);
-        verifyObjectFound(sr);
-        sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created > :value1 and b.stage = :value2 and b.signupRequestId = :value3";
-        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 1, sr.getId());
+        SignupRequest signupRequest = daoApi.getSignupRequest(date, email);
+        verifyObjectFound(signupRequest);
+        var verification = daoApi.getSubscriberVerification(code, date, signupRequest.getId());
         verifyObjectFound(verification);
-        sr.setStatus('P');//pending
-        sr.setEmailVerified(verification.getVerificationMode() == 'E');
-        sr.setMobileVerified(verification.getVerificationMode() == 'M');
-        dao.delete(verification);
-        dao.update(sr);
-        async.informAdminsNewRegistration(sr.getCompanyName());
+        signupRequest.setStatus('P');//pending
+        signupRequest.setEmailVerified(verification.getVerificationMode() == 'E');
+        signupRequest.setMobileVerified(verification.getVerificationMode() == 'M');
+        daoApi.deleteVerification(verification);
+        daoApi.updateSignupRequest(signupRequest);
+        async.informAdminsNewRegistration(signupRequest.getCompanyName());
         return Response.status(200).build();
     }
 
@@ -151,15 +124,12 @@ public class ApiV2 {
     @Path("reset-password")
     public Response requestPasswordReset(Map<String, String> map) {
         String email = map.get("email").trim().toLowerCase();
-        String sql = "select b from Subscriber b where b.email =:value0";
-        Subscriber subscriber = dao.findJPQLParams(Subscriber.class, sql, email);
+        var subscriber = daoApi.findSubscriberByEmail(email);
         verifyObjectFound(subscriber);
-
-        String token = createPasswordResetObject(subscriber);
+        String token = daoApi.createPasswordResetObject(subscriber.getId());
         String[] values = new String[]{token, subscriber.getName(), "qstock"};//website is q-stock
         MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
         async.sendEmail(emailModel);
-
         return Response.status(200).build();
     }
 
@@ -170,16 +140,9 @@ public class ApiV2 {
     public Response resetPassword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
         String token = map.get("code");
         String password = map.get("newPassword");
-        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
-        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
-
+        PasswordReset pr = daoApi.findPasswordResetObject(token);
         verifyObjectFound(pr);
-        Subscriber subscriber = dao.find(Subscriber.class, pr.getSubscriberId());
-        subscriber.setPassword(Helper.cypher(password));
-        subscriber.setEmailVerified(true);
-        dao.update(subscriber);
-        pr.setStatus('V');
-        dao.update(pr);
+        daoApi.resetSubscriberPassword(pr, password);
         return Response.status(200).build();
     }
 
@@ -188,48 +151,26 @@ public class ApiV2 {
     @GET
     @Path("reset-password/{token}")
     public Response verifyPasswordReset(@PathParam(value = "token") String token) {
-        String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
-        PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
+        PasswordReset pr = daoApi.findPasswordResetObject(token);
         verifyObjectFound(pr);
         return Response.status(200).build();
     }
 
 
-    private String createPasswordResetObject(Subscriber subscriber) {
-        String code = "";
-        boolean available = false;
-        do {
-            code = Helper.getRandomString(20);
-            String sql = "select b from PasswordReset b where b.token = :value0 and b.expire >= :value1 and status =:value2";
-            List<PasswordReset> l = dao.getJPQLParams(PasswordReset.class, sql, code, new Date(), 'R');
-            if (l.isEmpty())
-                available = true;
-
-        } while (!available);
-
-        int expireMinutes = 60 * 24 * 14;
-        PasswordReset ev = new PasswordReset(subscriber.getId(), code, expireMinutes);
-        dao.persist(ev);
-        return code;
-    }
 
     @POST
     @Path("refresh-token")
     public Response refresh(Map<String, String> map) {
         String shortToken = map.get("token");
         String refreshToken = map.get("refreshToken");
-        int[] result = verifyTokensPair(shortToken, refreshToken);
-        int subId = result[0];
+        int[] result = verifyTokensPair(shortToken, map.get("refreshToken"));
+        int subscriberId = result[0];
         int appCode = result[1];
-        String sql = "select b from RefreshToken b where b.subscriberId = :value0 " +
-                " and b.appCode = :value1" +
-                " and b.token = :value2" +
-                " and b.status = :value3" +
-                " and b.expiresAt > :value4";
-        RefreshToken rt = dao.findJPQLParams(RefreshToken.class, sql, subId, appCode, refreshToken, 'A', new Date());
-        if (rt == null) throwError(401);
-        Subscriber sub = dao.find(Subscriber.class, subId);
-        PbLoginObject loginObject = getLoginObject(sub, appCode);
+        var foundRefreshToken = daoApi.findRefreshToken(refreshToken, subscriberId, appCode);
+        if (foundRefreshToken == null) throwError(401);
+
+        var subscriber = daoApi.findSubscriber(subscriberId);
+        PbLoginObject loginObject = getLoginObject(subscriber, appCode);
         return Response.status(200).entity(loginObject).build();
     }
 
@@ -251,7 +192,7 @@ public class ApiV2 {
     public Response logout(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int appCode = getAppCodeFromJWT(header);
         int subscriberId = Helper.getSubscriberFromJWT(header);
-        killTokens(subscriberId, appCode);
+        daoApi.killTokens(subscriberId, appCode);
         return Response.ok().build();
     }
 
@@ -261,26 +202,17 @@ public class ApiV2 {
     public Response createBranch(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Branch branch) {
         int companyId = Helper.getCompanyFromJWT(header);
         int subscriberId = Helper.getSubscriberFromJWT(header);
-        branch.setCompanyId(companyId);
-        branch.setCreated(new Date());
-        branch.setNameAr(branch.getName());
-        branch.setCreatedBySubscriber(subscriberId);
-        branch.setStatus('A');
-        dao.persist(branch);
-        PbBranch pbBranch = dao.find(PbBranch.class, branch.getId());
-        makeBranchDefaultIfSingle(pbBranch);
+        var pbBranch = daoApi.createBranch(branch, companyId, subscriberId);
         return Response.status(200).entity(pbBranch).build();
     }
-
 
     @PUT
     @Path("invoice-template")
     @SubscriberJwt
     public Response updateInvoiceTemplate(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,String> map){
         int companyId = Helper.getCompanyFromJWT(header);
-        String template = map.get("invoiceTemplate");
-        String sql = "update sub_company_profile_settings set invoice_template = '"+template+"' where company_id = " + companyId;
-        dao.updateNative(sql);
+        var template = map.get("invoiceTemplate");
+        daoApi.updateInvoiceTemplate(template, companyId);
         return Response.status(200).build();
     }
 
@@ -290,9 +222,8 @@ public class ApiV2 {
     @SubscriberJwt
     public Response updateDefaultCurrency(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,String> map){
         int companyId = Helper.getCompanyFromJWT(header);
-        String currency = map.get("currency");
-        String sql = "update sub_company_profile_settings set default_currency = '"+currency+"' where company_id = " + companyId;
-        dao.updateNative(sql);
+        var currency = map.get("currency");
+        daoApi.updateDefaultCurrency(currency, companyId);
         return Response.status(200).build();
     }
 
@@ -303,21 +234,17 @@ public class ApiV2 {
     public Response updateLogoUploaded(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Boolean> map){
         int companyId = Helper.getCompanyFromJWT(header);
         Boolean uploaded = map.get("logoUploaded");
-        String sql = "update sub_company_profile_settings set logo_uploaded = "+uploaded+" where company_id = " + companyId;
-        dao.updateNative(sql);
+        daoApi.updateLogoUploaded(uploaded, companyId);
         return Response.status(200).build();
     }
-
 
     @Path("default-policy")
     @PUT
     @SubscriberJwt
     public Response makeDefaultPolicy(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
         int companyId = Helper.getCompanyFromJWT(header);
-        int branchId = map.get("policyId");
-        String sql = "insert into sub_company_profile_settings (company_id, default_policy_id) values (" + companyId + ", " + branchId +")" +
-                "on conflict (company_id) do update set default_policy_id = " + branchId;
-        dao.insertNative(sql);
+        int policyId = map.get("policyId");
+        daoApi.makeDefaultPolicy(policyId, companyId);
         return Response.status(200).build();
     }
 
@@ -326,20 +253,17 @@ public class ApiV2 {
     @SubscriberJwt
     public Response createCompanyRole(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, CompanyRole role){
         int companyId = Helper.getCompanyFromJWT(header);
-        role.setCompanyId(companyId);
-        dao.persist(role);
+        daoApi.createCompanyRole(role, companyId);
         return Response.status(200).build();
     }
 
     @Path("default-customer")
     @PUT
     @SubscriberJwt
-    public Response makeDefaultCustomr(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+    public Response makeDefaultCustomer(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
         int companyId = Helper.getCompanyFromJWT(header);
         int customerId = map.get("customerId");
-        String sql = "insert into sub_company_profile_settings (company_id, default_customer_id) values (" + companyId + ", " + customerId +")" +
-                "on conflict (company_id) do update set default_customer_id = " + customerId;
-        dao.insertNative(sql);
+        daoApi.makeDefaultCustomer(customerId, companyId);
         return Response.status(200).build();
     }
 
@@ -350,12 +274,9 @@ public class ApiV2 {
     public Response makeBranchDefault(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
         int companyId = Helper.getCompanyFromJWT(header);
         int branchId = map.get("branchId");
-        this.makeDefaultBranch(companyId, branchId);
+        daoApi.makeDefaultBranch(companyId, branchId);
         return Response.status(200).build();
     }
-
-
-
 
 
     @SubscriberJwt
@@ -364,39 +285,18 @@ public class ApiV2 {
     public Response getPolicies(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Object> map){
         int companyId = Helper.getCompanyFromJWT(header);
         String vatNumber = (String) map.get("vatNumber");
-        if(vatNumber != null) {
-            String quoted = "'" + vatNumber + "'";
-            String sql = "insert into sub_company_profile_settings (company_id, vat_number) values (" + companyId + ", " + quoted + ")" +
-                    "on conflict (company_id) do update set vat_number = " + quoted;
-            dao.insertNative(sql);
-        }
+        if(vatNumber != null)
+            daoApi.updateVatNumber(vatNumber, companyId);
+
         Double purchaseTax = (Double) map.get("defaultPurchaseTax");
-        if(purchaseTax != null) {
-            String sql = "insert into sub_company_profile_settings (company_id, default_purchase_tax) values (" + companyId + ", " + purchaseTax + ")" +
-                    "on conflict (company_id) do update set default_purchase_tax = " + purchaseTax;
-            dao.insertNative(sql);
+        if(purchaseTax != null)
+            daoApi.updateDefaultPurchaseTax(purchaseTax, companyId);
 
-        }
         Double salesTax = (Double) map.get("defaultSalesTax");
-        if(salesTax != null) {
-            String sql = "insert into sub_company_profile_settings (company_id, default_sales_tax) values (" + companyId + ", " + salesTax + ")" +
-                    "on conflict (company_id) do update set default_sales_tax = " + salesTax;
-            dao.insertNative(sql);
-        }
+        if(salesTax != null)
+           daoApi.updateDefaultSalesTax(salesTax, companyId);
+
         return Response.status(200).build();
-    }
-
-    private void makeBranchDefaultIfSingle(PbBranch pbBranch){
-       List<PbBranch> branches = dao.getCondition(PbBranch.class, "companyId", pbBranch.getCompanyId());
-       if(branches.size() == 1){
-            makeDefaultBranch(pbBranch.getCompanyId(), pbBranch.getId());
-       }
-    }
-
-    private void makeDefaultBranch(int companyId, int branchId){
-        String sql = "insert into sub_company_profile_settings (company_id, default_branch_id) values (" + companyId + ", " + branchId +")" +
-                "on conflict (company_id) do update set default_branch_id = " + branchId;
-        dao.insertNative(sql);
     }
 
     @GET
@@ -404,8 +304,7 @@ public class ApiV2 {
     @Path("branches/ids")
     public Response getBranchIds(@HeaderParam(HttpHeaders.AUTHORIZATION) String header){
         int companyId = Helper.getCompanyFromJWT(header);
-        String sql = "select b.id from Branch b where companyId = :value0";
-        List<Integer> ints = dao.getJPQLParams(Integer.class, sql, companyId);
+        var ints = daoApi.getBranchIds(companyId);
         Map<String,Object> map = new HashMap<>();
         map.put("branchIds", ints);
         return Response.status(200).entity(map).build();
@@ -418,18 +317,14 @@ public class ApiV2 {
         verifyAvailability(model.getEmail(), model.getMobile());//returns 409
         int companyId = Helper.getCompanyFromJWT(header);
         int subscriberId = Helper.getSubscriberFromJWT(header);
-        model.setCompanyId(companyId);
-        model.setCreatedBySubscriber(subscriberId);
-        SignupRequest sr = new SignupRequest(model);
-        dao.persist(sr);
-        String code = createVerificationCode();
-        SubscriberVerification sv = new SubscriberVerification(sr, model.getCountryId() == 1 ? 'M' : 'E', code, model.getCompanyId());
-        dao.persist(sv);
+        SignupRequest signupRequest = daoApi.createAdditionalSubscriberSignupRequest(model, companyId, subscriberId);
+        String code = daoApi.createAndGetVerificationCode(signupRequest, model.getCountryId(), model.getCompanyId());
+
         if (model.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, code);
             async.sendSms(smsModel);
         } else {
-            String[] s = new String[]{model.getName(), sv.getVerificationCode()};
+            String[] s = new String[]{model.getName(), code};
             MessagingModel emailModel = new MessagingModel(null, model.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
         }
@@ -444,42 +339,9 @@ public class ApiV2 {
     public Response verifyAdditionalSubscriber(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
         String code = (String) map.get("code");
         int companyId = Helper.getCompanyFromJWT(header);
-        Date date = Helper.addMinutes(new Date(), -60);
-        String sql = "select b from SubscriberVerification b " +
-                " where b.verificationCode = :value0 " +
-                " and b.created > :value1 " +
-                " and b.stage = :value2 " +
-                " and b.companyId = :value3";
-        SubscriberVerification verification = dao.findJPQLParams(SubscriberVerification.class, sql, code, date, 3, companyId);
+        var verification = daoApi.getSubscriberVerification(code, companyId);
         verifyObjectFound(verification);
-        SignupRequest sr = dao.find(SignupRequest.class, verification.getSignupRequestId());
-        Subscriber subscriber = new Subscriber();
-        subscriber.setEmail(sr.getEmail());
-        subscriber.setMobile(sr.getMobile());
-        subscriber.setName(sr.getName());
-        subscriber.setCreated(new Date());
-        subscriber.setCreatedBy(sr.getCreatedBy());
-        subscriber.setEmailVerified(verification.getVerificationMode() == 'E');
-        subscriber.setMobileVerified(verification.getVerificationMode() == 'M');
-        subscriber.setAdmin(false);
-        subscriber.setPassword(sr.getPassword());
-        subscriber.setCompanyId(companyId);
-        subscriber.setStatus('A');
-        //get general role id
-        //get admin subscriber and copy its role
-        Subscriber admin = dao.findTwoConditions(Subscriber.class, "companyId", "admin", companyId, true);
-        for (var role : admin.getRoles()) {
-            GeneralRole gr = dao.find(GeneralRole.class, role.getId());
-            subscriber.getRoles().add(gr);
-        }
-        //subscriber.setRoles(admin.getRoles());
-        dao.persist(subscriber);
-        dao.delete(verification);
-        sr.setStatus('C');
-        dao.update(sr);
-        PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
-        pbSubscriber.setDefaultBranch(sr.getDefaultBranch());
-        dao.update(pbSubscriber);
+        var pbSubscriber = daoApi.createAdditionalSubscriber(companyId, verification);
         return Response.status(200).entity(pbSubscriber).build();
     }
 
@@ -490,21 +352,32 @@ public class ApiV2 {
     public Response verifySearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int companyId = Helper.getCompanyFromJWT(header);
         int subscriberId = Helper.getSubscriberFromJWT(header);
-        String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 13" +
-                "and ra.role_id in (" +
-                "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
-        Number n = dao.findNative(Number.class, sql);
-        //unlimited search = 13
-        if(n.intValue() > 0){
+        if(daoApi.isSearchPartsUnlimited(subscriberId)){
             return Response.status(201).build();
         }
-        sql = "select count(*) from SearchKeyword where found = :value0 and companyId = :value1" +
-                " and cast (created as date) = cast (now() as date)";
-        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
-        if (number.intValue() >= 10) {
+        if (daoApi.getNumberOfPartsSearchUsed(companyId) >= 10) {
             return Response.status(403).build();
         }
         return Response.status(201).build();
+    }
+
+    @SubscriberJwt
+    @GET
+    @Path("product-search-count")
+    public Response getProductSearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header){
+        int companyId = Helper.getCompanyFromJWT(header);
+        int number = daoApi.getNumberOfPartsSearchUsed(companyId);
+        Map<String,Integer> map = new HashMap<>();
+        map.put("count", number);
+        return Response.status(200).entity(map).build();
+    }
+
+    @SubscriberJwt
+    @GET
+    @Path("most-searched-keywords")
+    public Response getMostSearchedKeywords(){
+        List<Map<String, Object>> list = daoApi.getMostSearchedKeywords();
+        return Response.status(200).entity(list).build();
     }
 
     @SubscriberJwt
@@ -513,27 +386,22 @@ public class ApiV2 {
     public Response verifyReplacementSearchCount(@HeaderParam(HttpHeaders.AUTHORIZATION) String header) {
         int companyId = Helper.getCompanyFromJWT(header);
         int subscriberId = Helper.getSubscriberFromJWT(header);
-        String sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 15" +
-                "and ra.role_id in (" +
-                "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
-        Number n = dao.findNative(Number.class, sql);
-        //unlimited search = 13
-        if(n.intValue() > 0){
+
+        boolean isUnlimited = daoApi.isSearchReplacementsUnlimited(subscriberId);
+        if(isUnlimited)
             return Response.status(201).build();
-        }
-        sql = "select count(*) from SearchReplacementKeyword where found = :value0 and companyId = :value1";
-        Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
-        if (number.intValue() >= 5) {
+
+        int numberOfSearches = daoApi.getNumberOfReplacementSearchUsed(companyId);
+        if (numberOfSearches >= 5)
             return Response.status(403).build();
-        }
+
         return Response.status(201).build();
     }
 
-
     private PbLoginObject getLoginObject(Subscriber subscriber, int appCode) {
         subscriber = updateSubscriptionStatus(subscriber);
-        CompanyView companyView = dao.find(CompanyView.class, subscriber.getCompanyId());
-        PbSubscriber pbSubscriber = dao.find(PbSubscriber.class, subscriber.getId());
+        var companyView = daoApi.findCompanyView(subscriber.getCompanyId());
+        var pbSubscriber = daoApi.findPbSubscriber(subscriber.getId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);//short one
         List<Integer> activities = extractActivities(pbSubscriber);
         return new PbLoginObject(companyView, pbSubscriber, jwt, null, activities);
@@ -554,7 +422,6 @@ public class ApiV2 {
         try {
             Date issued = new Date();
             Date expire = Helper.addMinutes(issued, 60*24*7);
- //           Date expire = Helper.addMinutes(issued, 5);
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
@@ -576,7 +443,7 @@ public class ApiV2 {
             map.put("appCode", appCode);
             map.put("comp", companyId);
             String jwt = KeyConstant.issueToken(userId, map, issued, expire);
-            saveRefreshToken(jwt, userId, issued, expire, appCode);
+            daoApi.saveRefreshToken(jwt, userId, issued, expire, appCode);
             return jwt;
         } catch (Exception ex) {
             throwError(500, "Token issuing error");
@@ -584,57 +451,18 @@ public class ApiV2 {
         }
     }
 
-    private void killTokens(int userId, int appCode) {
-        String sql = "select b from RefreshToken b where b.subscriberId = :value0 and b.status = :value1 and b.appCode = :value2";
-        List<RefreshToken> oldTokens = dao.getJPQLParams(RefreshToken.class, sql, userId, 'A', appCode);
-        for (var ort : oldTokens) {
-            ort.setStatus('K');//kill previous tokens
-            dao.update(ort);
-        }
-    }
-
-    private void saveRefreshToken(String jwt, int userId, Date issued, Date expire, int appCode) {
-        killTokens(userId, appCode);
-        RefreshToken rt = new RefreshToken();
-        rt.setSubscriberId(userId);
-        rt.setIssuedAt(issued);
-        rt.setExpiresAt(expire);
-        rt.setStatus('A');
-        rt.setAppCode(appCode);
-        rt.setToken(jwt);
-        dao.persist(rt);
-    }
-
     private Subscriber updateSubscriptionStatus(Subscriber subscriber) {
-        Subscription activeSubscription = dao.findTwoConditions(Subscription.class, "companyId", "status", subscriber.getCompanyId(), 'A');
-        if (activeSubscription != null) {
-            if (activeSubscription.getEndDate().before(new Date())) {
-                activeSubscription.setStatus('E');
-                dao.update(activeSubscription);
-                //check if there is future make it active
-                String jpql = "select b from Subscription b where b.companyId = :value0 and b.status = :value1 and b.startDate < :value2";
-                Subscription futureSubscription = dao.findJPQLParams(Subscription.class, jpql, subscriber.getCompanyId(), 'F', new Date());
-                if (futureSubscription != null) {
-                    futureSubscription.setStatus('A');
-                    dao.update(futureSubscription);
-                } else {
-                    //downgrade
-                    Company company = dao.find(Company.class, subscriber.getCompanyId());
-                    company.getActiveSubscription().getPlanId();
-                    Map<String, Integer> planIds = getBasicPlanId();
-                    int planId = planIds.get("planId");
-                    int durationId = planIds.get("durationId");
-                    int roleId = planIds.get("roleId");
-                    GeneralRole role = dao.find(GeneralRole.class, roleId);
-                    for (Subscriber s : company.getSubscribers()) {
-                        s.getRoles().clear();
-                        s.getRoles().add(role);
-                        dao.update(s);
-                        if (subscriber.getId() == s.getId()) {
-                            subscriber = s;
-                        }
-                    }
-                }
+        Subscription activeSubscription = daoApi.getActiveSubscription(subscriber.getCompanyId());
+        if (activeSubscription != null && activeSubscription.getEndDate().before(new Date())) {
+            daoApi.doExpireSubscription(activeSubscription);
+            //check if there is future make it active
+            var futureSubscription = daoApi.getFutureSubscription(subscriber.getCompanyId());
+            if (futureSubscription != null)
+                daoApi.doActivateSubscription(futureSubscription);
+            else {
+                Map<String, Integer> planIds = getBasicPlanId();
+                int roleId = planIds.get("roleId");
+                subscriber = daoApi.downgradeSubscriber(subscriber, roleId);
             }
         }
         return subscriber;
@@ -655,7 +483,7 @@ public class ApiV2 {
             async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
         }
-        Company company = dao.find(Company.class, subscriber.getCompanyId());
+        var company = daoApi.findCompany(subscriber.getCompanyId());
         if(company.getStatus() != 'A'){
             async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
@@ -667,21 +495,11 @@ public class ApiV2 {
     private WebApp getWebAppFromAuthHeader(String authHeader) {
         try {
             String appSecret = authHeader.substring("Bearer".length()).trim();
-            return getWebAppFromSecret(appSecret);
+            return daoApi.getWebAppFromSecret(appSecret);
         } catch (Exception ex) {
             throwError(401, "invalid secret");
             return null;
         }
-    }
-
-    // retrieves app object from app secret
-    private WebApp getWebAppFromSecret(String secret) throws Exception {
-        // verify web app secret
-        WebApp webApp = dao.findTwoConditions(WebApp.class, "appSecret", "active", secret, true);
-        if (webApp == null) {
-            throw new Exception();
-        }
-        return webApp;
     }
 
 
@@ -748,37 +566,15 @@ public class ApiV2 {
         return Integer.parseInt(claims.get("appCode").toString());
     }
 
-
-
     private void verifyAvailability(String email, String mobile) {
-        String sql = "select b from Subscriber b where (b.mobile =:value0 or b.email =:value1)";
-        List<Subscriber> check = dao.getJPQLParams(Subscriber.class, sql, mobile, email);
-        if (!check.isEmpty()) {
+        if (daoApi.subscriberExists(email, mobile))
             throwError(409, "Subscriber already registered");
-        }
 
-        sql = "select b from SignupRequest b where (b.mobile =:value0 or b.email =:value1) and b.status = :value2 and b.created > :value3";
-        List<SignupRequest> check2 = dao.getJPQLParams(SignupRequest.class, sql, mobile, email, 'R', Helper.addMinutes(new Date(), -60));
-        if (!check2.isEmpty()) {
+        if(daoApi.signupRequestExists(email, mobile))
             throwError(409, "Signup request already sent! try again in an hour");
-        }
     }
 
 
-    private String createVerificationCode() {
-        String code = "";
-        boolean available = false;
-        do {
-            code = String.valueOf(Helper.getRandomInteger(1000, 9999));
-            Date date = Helper.addMinutes(new Date(), -60);
-            String sql = "select b from SubscriberVerification b where b.verificationCode = :value0 and b.created >= :value1";
-            List<SubscriberVerification> l = dao.getJPQLParams(SubscriberVerification.class, sql, code, date);
-            if (l.isEmpty()) {
-                available = true;
-            }
-        } while (!available);
-        return code;
-    }
 
     private void sendMessagingNotification(SignupModel sm, String code){
         if (sm.getCountryId() == 1) {

@@ -60,7 +60,6 @@ public class Subscriber {
     }
 
 
-
     //used for creating admin
     public Subscriber(SignupRequest sr, char verificationMode, GeneralRole generalRole) {
         this.email = sr.getEmail();
