@@ -268,6 +268,16 @@ public class DaoApi {
         return dao.getNative(PbCompany.class, sql.toString());
     }
 
+    public List<PbCompanyVisible> getVisibleCompaniesByIds(String ids){
+        String[] idsArray = ids.split(",");
+        StringBuilder sql = new StringBuilder("select * from sub_company where status = 'A' and id in (0");
+        for (String s : idsArray) {
+            sql.append(",").append(s);
+        }
+        sql.append(") order by id");
+        return dao.getNative(PbCompanyVisible.class, sql.toString());
+    }
+
     public RefreshToken findRefreshToken(String refreshToken, int subscriberId, int appCode){
         String sql = "select b from RefreshToken b where b.subscriberId = :value0 " +
                 " and b.appCode = :value1" +
@@ -320,6 +330,15 @@ public class DaoApi {
         Number n = dao.findNative(Number.class, sql);
         return n.intValue() > 0;
     }
+
+    public boolean isDashboardMetricsAllowed(int subscriberId){
+        var sql = "select count(*) from sub_general_role_activity ra where ra.activity_id = 16" +
+                "and ra.role_id in (" +
+                "    select sr.role_id from sub_subscriber_general_role sr where subscriber_id = " + subscriberId + ")";
+        Number n = dao.findNative(Number.class, sql);
+        return n.intValue() > 0;
+    }
+
 
     public Subscription getActiveSubscription(int companyId){
         return dao.findTwoConditions(Subscription.class, "companyId", "status", companyId, 'A');

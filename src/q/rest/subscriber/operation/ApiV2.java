@@ -99,6 +99,14 @@ public class ApiV2 {
         return Response.status(200).entity(companies).build();
     }
 
+    @GET
+    @Path("companies/{ids}/visible")
+    @SubscriberJwt
+    public Response getCompaniesVisible(@PathParam(value = "ids") String ids) {
+        var companies = daoApi.getVisibleCompaniesByIds(ids);
+        return Response.status(200).entity(companies).build();
+    }
+
     @ValidApp
     @POST
     @Path(value="verify-signup")
@@ -345,6 +353,27 @@ public class ApiV2 {
         return Response.status(200).entity(pbSubscriber).build();
     }
 
+    @SubscriberJwt
+    @GET
+    @Path("dashboard-metrics-allowed")
+    public Response isDashboardMetricsAllowed(@HeaderParam(HttpHeaders.AUTHORIZATION) String header){
+        int subscriberId = Helper.getSubscriberFromJWT(header);
+        if(daoApi.isDashboardMetricsAllowed(subscriberId)){
+            return Response.status(201).build();
+        }
+        return Response.status(403).build();
+    }
+
+    @SubscriberJwt
+    @GET
+    @Path("is-search-unlimited")
+    public Response isPremium(@HeaderParam(HttpHeaders.AUTHORIZATION) String header){
+        int subscriberId = Helper.getSubscriberFromJWT(header);
+        if(daoApi.isSearchPartsUnlimited(subscriberId)){
+            return Response.status(201).build();
+        }
+        return Response.status(403).build();
+    }
 
     @SubscriberJwt
     @GET
