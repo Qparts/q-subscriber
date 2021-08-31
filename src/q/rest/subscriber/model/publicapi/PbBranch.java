@@ -138,4 +138,10 @@ public class PbBranch {
     public void setContacts(Set<PbCompanyContact> contacts) {
         this.contacts = contacts;
     }
+
+
+    @JsonIgnore
+    public void setPbContacts(Set<CompanyContact> contacts){
+
+    }
 }

@@ -1,6 +1,10 @@
 package q.rest.subscriber.model.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import q.rest.subscriber.model.publicapi.PbBranch;
+import q.rest.subscriber.model.publicapi.PbCompanyContact;
+
 import javax.persistence.*;
 import java.util.Date;
 import java.util.HashSet;
@@ -36,6 +40,28 @@ public class Branch {
 
     public Branch() {
     }
+
+
+    //only use this after creation directly
+    @JsonIgnore
+    public PbBranch getPublicBranch(){
+        PbBranch pb = new PbBranch();
+        pb.setId(id);
+        pb.setCompanyId(companyId);
+        pb.setName(name);
+        pb.setNameAr(nameAr);
+        pb.setCountryId(countryId);
+        pb.setRegionId(regionId);
+        pb.setCityId(cityId);
+        pb.setStatus(status);
+        pb.setClientBranchId(clientBranchId);
+        pb.setLongitude(longitude);
+        pb.setLatitude(latitude);
+        pb.setMapZoom(mapZoom);
+        pb.setPbContacts(contacts);
+        return pb;
+    }
+
 
     public int getCreatedBySubscriber() {
         return createdBySubscriber;
