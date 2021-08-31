@@ -172,4 +172,27 @@ public class Branch {
     public void setContacts(Set<CompanyContact> contacts) {
         this.contacts = contacts;
     }
+
+    @Override
+    public String toString() {
+        return "Branch{" +
+                "id=" + id +
+                ", companyId=" + companyId +
+                ", name='" + name + '\'' +
+                ", nameAr='" + nameAr + '\'' +
+                ", countryId=" + countryId +
+                ", regionId=" + regionId +
+                ", cityId=" + cityId +
+                ", created=" + created +
+                ", createdBy=" + createdBy +
+                ", createdBySubscriber=" + createdBySubscriber +
+                ", status=" + status +
+                ", clientBranchId='" + clientBranchId + '\'' +
+                ", notes='" + notes + '\'' +
+                ", longitude=" + longitude +
+                ", latitude=" + latitude +
+                ", mapZoom=" + mapZoom +
+                ", contacts=" + contacts +
+                '}';
+    }
 }

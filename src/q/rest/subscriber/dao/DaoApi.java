@@ -86,19 +86,13 @@ public class DaoApi {
     }
 
     public PbBranch createBranch(Branch branch, int companyId, int subscriberId){
-        System.out.println("reached create branch in daoapi");
         branch.setCompanyId(companyId);
-        System.out.println("1");
         branch.setCreated(new Date());
-        System.out.println(2);
         branch.setNameAr(branch.getName());
-        System.out.println(3);
         branch.setCreatedBySubscriber(subscriberId);
-        System.out.println(4);
         branch.setStatus('A');
-        System.out.println(5);
+        System.out.println(branch);
         dao.persist(branch);
-        System.out.println(6);
         System.out.println("finding branch id " + branch.getId());
         var pbBranch = dao.find(PbBranch.class, branch.getId());
         List<PbBranch> branches = dao.getCondition(PbBranch.class, "companyId", pbBranch.getCompanyId());
