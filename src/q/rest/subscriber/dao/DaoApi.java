@@ -92,10 +92,8 @@ public class DaoApi {
         branch.setCreatedBySubscriber(subscriberId);
         branch.setStatus('A');
         branch = dao.persistAndReturn(branch);
-        System.out.println("finding branch id " + branch.getId());
         var pbBranch = dao.find(PbBranch.class, branch.getId());
         List<PbBranch> branches = dao.getCondition(PbBranch.class, "companyId", pbBranch.getCompanyId());
-        System.out.println("branches size " + branches.size());
         if(branches.size() == 1)
             makeDefaultBranch(pbBranch.getCompanyId(), pbBranch.getId());
         return pbBranch;

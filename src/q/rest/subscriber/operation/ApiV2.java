@@ -40,6 +40,7 @@ public class ApiV2 {
         WebApp webApp = this.getWebAppFromAuthHeader(header);
         String password = Helper.cypher(map.get("password"));
         String email = map.get("email").trim().toLowerCase();
+        String host = map.get("host").trim().toLowerCase();
         String ip = map.get("ipAddress");
         Subscriber subscriber = daoApi.findSubscriber(email, password);
         verifyLogin(subscriber, email, ip);
@@ -48,8 +49,6 @@ public class ApiV2 {
         loginObject.setRefreshJwt(refreshJwt);
         return Response.ok().entity(loginObject).build();
     }
-
-
 
 
     @POST
@@ -63,7 +62,6 @@ public class ApiV2 {
         sendMessagingNotification(sm, code);
         return Response.status(200).build();
     }
-
 
     @GET
     @Path("company/{id}")
@@ -130,12 +128,14 @@ public class ApiV2 {
     @ValidApp
     @POST
     @Path("reset-password")
-    public Response requestPasswordReset(Map<String, String> map) {
+    public Response requestPasswordReset(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        var appCode = getWebAppFromAuthHeader(header).getAppCode();
         String email = map.get("email").trim().toLowerCase();
         var subscriber = daoApi.findSubscriberByEmail(email);
         verifyObjectFound(subscriber);
         String token = daoApi.createPasswordResetObject(subscriber.getId());
-        String[] values = new String[]{token, subscriber.getName(), "qstock"};//website is q-stock
+        System.out.println("app code for resetting password " + appCode);
+        String[] values = new String[]{token, subscriber.getName(), appCode == 8 ? "qvm" : "qstock"};
         MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
         async.sendEmail(emailModel);
         return Response.status(200).build();
@@ -602,8 +602,6 @@ public class ApiV2 {
         if(daoApi.signupRequestExists(email, mobile))
             throwError(409, "Signup request already sent! try again in an hour");
     }
-
-
 
     private void sendMessagingNotification(SignupModel sm, String code){
         if (sm.getCountryId() == 1) {
