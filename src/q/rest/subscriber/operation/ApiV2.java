@@ -40,7 +40,6 @@ public class ApiV2 {
         WebApp webApp = this.getWebAppFromAuthHeader(header);
         String password = Helper.cypher(map.get("password"));
         String email = map.get("email").trim().toLowerCase();
-        String host = map.get("host").trim().toLowerCase();
         String ip = map.get("ipAddress");
         Subscriber subscriber = daoApi.findSubscriber(email, password);
         verifyLogin(subscriber, email, ip);
