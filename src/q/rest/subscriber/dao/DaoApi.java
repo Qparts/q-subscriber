@@ -184,9 +184,7 @@ public class DaoApi {
         return sr;
     }
 
-    public PbSubscriber createAdditionalSubscriber(int companyId, SubscriberVerification verification){
-        SignupRequest signupRequest = getSignupRequest(verification.getSignupRequestId());
-
+    public Subscriber createAdditionalSubscriber(int companyId, SubscriberVerification verification, SignupRequest signupRequest){
         Subscriber subscriber = new Subscriber();
         subscriber.setEmail(signupRequest.getEmail());
         subscriber.setMobile(signupRequest.getMobile());
@@ -205,16 +203,16 @@ public class DaoApi {
             GeneralRole gr = dao.find(GeneralRole.class, role.getId());
             subscriber.getRoles().add(gr);
         }
-
         dao.persist(subscriber);
-        deleteVerification(verification);
-        signupRequest.setStatus('C');
-        dao.update(signupRequest);
+        return subscriber;
+    }
+
+    public void setDefaultBranch(Subscriber subscriber, SignupRequest signupRequest){
         var pbSubscriber = findPbSubscriber(subscriber.getId());
         pbSubscriber.setDefaultBranch(signupRequest.getDefaultBranch());
         dao.update(pbSubscriber);
-        return pbSubscriber;
     }
+
 
     public SignupRequest getSignupRequest(Date date, String email){
         String sql = "select b from SignupRequest b where b.created > :value0 and b.email = :value1";

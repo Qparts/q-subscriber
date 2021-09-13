@@ -348,7 +348,13 @@ public class ApiV2 {
         int companyId = Helper.getCompanyFromJWT(header);
         var verification = daoApi.getSubscriberVerification(code, companyId);
         verifyObjectFound(verification);
-        var pbSubscriber = daoApi.createAdditionalSubscriber(companyId, verification);
+        SignupRequest signupRequest = daoApi.getSignupRequest(verification.getSignupRequestId());
+        signupRequest.setStatus('C');
+        daoApi.deleteVerification(verification);
+        daoApi.updateSignupRequest(signupRequest);
+        var subscriber = daoApi.createAdditionalSubscriber(companyId, verification, signupRequest);
+        daoApi.setDefaultBranch(subscriber, signupRequest);
+        var pbSubscriber = daoApi.findPbSubscriber(subscriber.getId());
         return Response.status(200).entity(pbSubscriber).build();
     }
 
