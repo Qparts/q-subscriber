@@ -400,6 +400,15 @@ public class ApiV1 {
         return Response.ok().entity(contact).build();
     }
 
+    @DELETE
+    @Path("contact/{id}")
+    @UserJwt
+    public Response deleteContact(@PathParam(value = "id") int id){
+        CompanyContact contact = dao.find(CompanyContact.class, id);
+        dao.delete(contact);
+        return Response.status(200).build();
+    }
+
     @POST
     @Path("branch")
     @UserSubscriberJwt
@@ -1041,6 +1050,23 @@ public class ApiV1 {
         return Response.status(200).entity(loginObject).build();
     }
 
+    @UserJwt
+    @POST
+    @Path("generate-password-link")
+    public Response generatePasswordRest(Map<String,Object> map){
+        int subscriberId = ((Number) map.get("subscriberId")).intValue();
+        String application = (String) map.get("application");
+        if(!(application.equals("qvm") || application.equals("qstock")))
+            return Response.status(404).build();
+        Subscriber subscriber = dao.find(Subscriber.class, subscriberId);
+        String token = createPasswordResetObject(subscriber);
+        String[] values = new String[]{token, subscriber.getName(), application};
+        MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
+        async.sendEmail(emailModel);
+        Map<String,String> newMap = new HashMap<>();
+        newMap.put("token", token);
+        return Response.status(200).entity(newMap).build();
+    }
 
     @ValidApp
     @POST
