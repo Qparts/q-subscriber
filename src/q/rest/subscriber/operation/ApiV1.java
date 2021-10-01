@@ -13,6 +13,7 @@ import q.rest.subscriber.model.entity.keywords.SearchLimit;
 import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
+import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
 import q.rest.subscriber.model.reduced.CompanyReduced;
@@ -777,19 +778,33 @@ public class ApiV1 {
     }
 
     @GET
-    @Path("companies/all")
+    @Path("company-ids/all")
     @UserJwt
     public Response getAllCompanies() {
         String sql = "select b.id from Company b order by b.id desc";
         List<Integer> ids = dao.getJPQLParams(Integer.class, sql);
         Map<String, Object> map = new HashMap<>();
-        map.put("companies", ids);
+        map.put("companyIds", ids);
         return Response.ok().entity(map).build();
+    }
+
+    @GET
+    @Path("companies/ids/{ids}")
+    @UserJwt
+    public Response getCompanies(@PathParam(value = "ids") String ids) {
+        String[] idsArray = ids.split(",");
+        StringBuilder sql = new StringBuilder("select * from sub_company where id in (0");
+        for (String s : idsArray) {
+            sql.append(",").append(s);
+        }
+        sql.append(") order by id");
+        var companies =  dao.getNative(Company.class, sql.toString());
+        return Response.status(200).entity(companies).build();
     }
 
 
     @POST
-    @Path("search/company/labels")
+    @Path("company-ids/labels")
     @UserJwt
     public Response searchCompaniesWithLabels(List<Label> labels) {
         if (labels == null || labels.isEmpty()) {
@@ -801,7 +816,7 @@ public class ApiV1 {
         }
         List<Integer> list = (List<Integer>) dao.getNative(sql);
         Map<String, Object> map = new HashMap<>();
-        map.put("companies", list);
+        map.put("companyIds", list);
         return Response.ok().entity(map).build();
     }
 
@@ -856,7 +871,7 @@ public class ApiV1 {
     }
 
     @GET
-    @Path("search/company/not-logged/days/{days}")
+    @Path("company-ids/not-logged/days/{days}")
     @UserJwt
     public Response searchNotLogged(@PathParam(value = "days") int days) {
         String sql = "select b.id from Company b where b.id not in (" +
@@ -866,23 +881,23 @@ public class ApiV1 {
         Date date = Helper.addDays(new Date(), days * -1);
         List<Integer> companyIds = dao.getJPQLParams(Integer.class, sql, true, date);
         Map<String, Object> map = new HashMap<>();
-        map.put("companies", companyIds);
+        map.put("companyIds", companyIds);
         return Response.ok().entity(map).build();
     }
 
     @UserJwt
     @GET
-    @Path("companies/integrated")
+    @Path("company-ids/integrated")
     public Response getIntegratedCompanies() {
         String sql = "select b.id from Company b where b.integrated = :value0 order by b.id";
         List<Integer> ints = dao.getJPQLParams(Integer.class, sql, true);
         Map<String, Object> map = new HashMap<>();
-        map.put("companies", ints);
+        map.put("companyIds", ints);
         return Response.ok().entity(map).build();
     }
 
     @GET
-    @Path("search/company/{query}")
+    @Path("company-ids/search/{query}")
     @UserJwt
     public Response search(@PathParam(value = "query") String query) {
         int id = Helper.parseId(query);
@@ -896,7 +911,7 @@ public class ApiV1 {
                 "or b.id = :value1";
         List<Integer> ids = dao.getJPQLParams(Integer.class, sql, query, id);
         Map<String, Object> map = new HashMap<>();
-        map.put("companies", ids);
+        map.put("companyIds", ids);
         return Response.ok().entity(map).build();
     }
 
