@@ -43,6 +43,7 @@ public class Company {
     @JoinColumn(name="company_id")
     @OrderBy("startDate desc")
     private Set<Subscription> subscriptions = new HashSet<>();
+    //remove label
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name="sub_company_label", joinColumns = @JoinColumn(name="company_id"), inverseJoinColumns = @JoinColumn(name="label_id"))
     @OrderBy(value = "id")

@@ -1,12 +1,11 @@
 package q.rest.subscriber.model.entity;
 
 import javax.persistence.*;
-import java.io.Serializable;
 import java.util.Date;
 
 @Entity
 @Table(name = "sub_comment")
-public class Comment implements Serializable {
+public class Comment {
 
     @Id
     @SequenceGenerator(name = "sub_comment_id_seq_gen", sequenceName = "sub_comment_id_seq", initialValue = 1, allocationSize = 1)

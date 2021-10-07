@@ -1,5 +1,6 @@
 package q.rest.subscriber.operation;
 
+import org.jboss.logging.Logger;
 import q.rest.subscriber.dao.DAO;
 import q.rest.subscriber.filter.annotation.*;
 import q.rest.subscriber.helper.AppConstants;
@@ -13,7 +14,6 @@ import q.rest.subscriber.model.entity.keywords.SearchLimit;
 import q.rest.subscriber.model.entity.keywords.SearchReplacementKeyword;
 import q.rest.subscriber.model.entity.role.general.GeneralActivity;
 import q.rest.subscriber.model.entity.role.general.GeneralRole;
-import q.rest.subscriber.model.publicapi.PbCompany;
 import q.rest.subscriber.model.publicapi.PbLoginObject;
 import q.rest.subscriber.model.publicapi.PbSubscriber;
 import q.rest.subscriber.model.reduced.CompanyReduced;
@@ -32,27 +32,34 @@ import java.util.*;
 @Produces(MediaType.APPLICATION_JSON)
 public class ApiV1 {
 
+    private static final Logger logger = Logger.getLogger(ApiV1.class);
+
     @EJB
     private DAO dao;
 
     @EJB
     private AsyncService async;
 
+
     @UserJwt
     @PUT
     @Path("company")
     public Response updateCompany(Company company) {
+        logger.info("update company");
         Company co = dao.find(Company.class, company.getId());
         company.setSubscribers(co.getSubscribers());//prevent password loss
         dao.update(company);
+        logger.info("update company done");
         return Response.status(200).entity(company).build();
     }
 
 
+    //ms-sub
     @UserSubscriberJwt
     @POST
     @Path("additional-subscriber-request")
     public Response addNewSubscriber(AddSubscriberModel model) {
+        logger.info("additional subscriber request ");
         verifyAvailability(model.getEmail(), model.getMobile());//returns 409
         SignupRequest sr = new SignupRequest(model);
         dao.persist(sr);
@@ -69,13 +76,15 @@ public class ApiV1 {
         }
         Map<String, String> map = new HashMap<String, String>();
         map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+        logger.info("additional subscriber request done");
         return Response.status(200).entity(map).build();
     }
-
+    //ms-sub
     @UserSubscriberJwt
     @PUT
     @Path("verify-additional-subscriber")
     public Response verifyAdditionalSubscriber(Map<String, Object> map) {
+        logger.info("verify additional subscriber");
         String code = (String) map.get("code");
         int companyId = (int) map.get("companyId");
         Date date = Helper.addMinutes(new Date(), -60);
@@ -111,13 +120,16 @@ public class ApiV1 {
         dao.delete(verification);
         sr.setStatus('C');
         dao.update(sr);
+        logger.info("verify additional subscriber done");
         return Response.status(200).entity(subscriber).build();
     }
 
+    //ms-sub
     @ValidApp
     @POST
     @Path(value="verify-signup-before-approval")
     public Response verifySignupToPending(Map<String, String> map){
+        logger.info("verify signup before approval");
         String code = map.get("code");
         String email = map.get("email").toLowerCase().trim();
         Date date = Helper.addMinutes(new Date(), -60);
@@ -133,32 +145,42 @@ public class ApiV1 {
         dao.delete(verification);
         dao.update(sr);
         async.informAdminsNewRegistration(sr.getCompanyName());
+        logger.info("verify signup before approval done");
         return Response.status(200).build();
     }
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("signup-requests/pending")
     public Response getPendingSingupRequests(){
+        logger.info("signup request pending");
         List<SignupRequest> requests = dao.getCondition(SignupRequest.class, "status", 'P');
+        logger.info("signup request pending done");
         return Response.status(200).entity(requests).build();
     }
 
+
+    //ms-sub
     @PUT
     @UserJwt
     @Path("decline-signup")
     public Response declineSignup(Map<String,Integer> map){
+        logger.info("decline signup");
         int id = map.get("signupRequestsId");
         SignupRequest sr = dao.find(SignupRequest.class, id);
         sr.setStatus('D');//declined
         dao.update(sr);
+        logger.info("decline signup done");
         return Response.status(200).build();
     }
 
+    //ms-sub
     @POST
     @UserJwt
     @Path("approve-signup")
     public Response approveSignup(Map<String,Integer> map){
+        logger.info("approve signup");
         int id = map.get("signupRequestsId");
         Integer companyId = map.get("companyId");
         SignupRequest sr = dao.find(SignupRequest.class, id);
@@ -187,11 +209,13 @@ public class ApiV1 {
         }
         sr.setStatus('C');
         dao.update(sr);
+        logger.info("approve signup done");
         return Response.status(200).build();
     }
 
     private void createDefaultCashCustomer(int companyId, int countryId){
         try {
+            logger.info("create default cash customer");
             Map<String,Integer> map = new HashMap<String, Integer>();
             map.put("companyId", companyId);
             map.put("countryId", countryId);
@@ -203,18 +227,20 @@ public class ApiV1 {
                         "on conflict (company_id) do update set default_customer_id = " + customerId;
                 dao.insertNative(sql);
             } else r.close();
+            logger.info("create default cash customer done");
         }catch (Exception ex){
-
+            logger.info("error in creating default cash customer");
         }
     }
 
 
-
+    //not needed
     //verify signup and create company directly
     @ValidApp
     @POST
     @Path(value = "verify-signup")
     public Response verifySignup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        logger.info("verify signup");
         WebApp webApp = getWebAppFromAuthHeader(header);
         String code = map.get("code");
         String ip = map.get("ipAddress");
@@ -239,27 +265,32 @@ public class ApiV1 {
         subscriber = dao.find(Subscriber.class, subscriber.getId());
         verifyLogin(company, subscriber, subscriber.getEmail(), ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        logger.info("verify signup done");
         return Response.status(200).entity(loginObject).build();
     }
 
 
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("comments-history/year/{year}/month/{month}")
     public Response getSmsHistory(@PathParam(value = "year") int year, @PathParam(value = "month") int month){
+        logger.info("comments history report");
         Date from = Helper.getFromDate(month, year);
         Date to = Helper.getToDate(month, year);
         String sql = "select b from Comment b where b.created between :value0 and :value1 order by b.created desc";
         List<Comment> list = dao.getJPQLParams(Comment.class, sql, from , to);
+        logger.info("comment history report done");
         return Response.ok().entity(list).build();
     }
 
-
+    //ms-sub
     @SubscriberJwt
     @POST
     @Path("request-verify")
     public Response requestVerification(Map<String, Object> map) {
+        logger.info("request verify");
         String method = (String) map.get("method");
         int subscriberId = (int) map.get("subscriberId");
         char mode = method.equals("email") ? 'E' : 'M';
@@ -276,13 +307,16 @@ public class ApiV1 {
             MessagingModel smsModel = new MessagingModel(sub.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
             async.sendSms(smsModel);
         }
+        logger.info("request verify done");
         return Response.status(200).build();
     }
 
+    //ms-sub
     @SubscriberJwt
     @PUT
     @Path("verify")
     public Response verifyMedium(Map<String, Object> map) {
+        logger.info("verify");
         String code = (String) map.get("code");
         int subscriberId = (int) map.get("subscriberId");
         Date date = Helper.addMinutes(new Date(), -60);
@@ -302,6 +336,7 @@ public class ApiV1 {
         }
         dao.update(sub);
         dao.delete(verification);
+        logger.info("verify done");
         return Response.status(200).entity(sub).build();
     }
 
@@ -310,6 +345,7 @@ public class ApiV1 {
     @POST
     @Path("send-purchase-order")
     public Response sendPurchaseOrder(Map<String, Integer> map) {
+        logger.info("send purchase order");
         int receiverId = map.get("receiverCompanyId");
         int senderId = map.get("senderId");
         Company receiverCompany = dao.find(Company.class, receiverId);
@@ -323,6 +359,7 @@ public class ApiV1 {
             MessagingModel emailModel = new MessagingModel(null, receiverCompany.getAdminSubscriber().getEmail(), AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, new String[]{admin.getName(), senderCompany.getName()});
             async.sendEmail(emailModel);
         }
+        logger.info("send purchase order done");
         return Response.status(200).build();
     }
 
@@ -330,6 +367,7 @@ public class ApiV1 {
     @POST
     @Path("update-purchase-order")
     public Response acceptPurchaseOrder(Map<String, Object> map) {
+        logger.info("update purchase order");
         int receiverId = (int) map.get("receiverCompanyId");
         int senderId = (int) map.get("senderId");
         String status = (String) map.get("status");
@@ -348,14 +386,17 @@ public class ApiV1 {
             MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), purpose, new String[]{subscriber.getName(), receiverCompany.getName()});
             async.sendEmail(emailModel);
         }
+        logger.info("update purchase order done");
         return Response.status(200).build();
     }
 
 
+    //ms-sub
     @ValidApp
     @POST
     @Path(value = "signup-request")
     public Response signup(@HeaderParam(HttpHeaders.AUTHORIZATION) String header,  SignupModel sm) {
+        logger.info("signup request");
         WebApp webApp = getWebAppFromAuthHeader(header);
         verifyAvailability(sm.getEmail(), sm.getMobile());//returns 409
         SignupRequest signupRequest = new SignupRequest(sm, webApp.getAppCode());
@@ -372,11 +413,13 @@ public class ApiV1 {
             MessagingModel emailModel = new MessagingModel(null, sm.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
         }
+        logger.info("signup request done");
         return Response.status(200).build();
     }
 
 
     private String createVerificationCode() {
+        logger.info("create verification code");
         String code = "";
         boolean available = false;
         do {
@@ -388,52 +431,66 @@ public class ApiV1 {
                 available = true;
             }
         } while (!available);
+        logger.info("create verification code done");
         return code;
     }
 
 
+    //ms-sub
+    @UserSubscriberJwt
     @POST
     @Path("contact")
-    @UserSubscriberJwt
     public Response createContact(CompanyContact contact) {
+        logger.info("create contact");
         contact.setCreated(new Date());
         dao.persist(contact);
+        logger.info("create contact done");
         return Response.ok().entity(contact).build();
     }
 
+    //ms-sub
     @DELETE
     @Path("contact/{id}")
     @UserJwt
     public Response deleteContact(@PathParam(value = "id") int id){
+        logger.info("delete contact");
         CompanyContact contact = dao.find(CompanyContact.class, id);
         dao.delete(contact);
+        logger.info("delete contact done");
         return Response.status(200).build();
     }
 
+    //ms-sub
     @POST
     @Path("branch")
     @UserSubscriberJwt
     public Response createBranch(Branch branch) {
+        logger.info("create branch");
         branch.setCreated(new Date());
         dao.persist(branch);
+        logger.info("create branch done");
         return Response.status(200).entity(branch).build();
     }
 
+    //ms-sub
     @GET
     @Path("company/{id}")
     @UserSubscriberJwt
     public Response getCompany(@PathParam(value = "id") int id) {
+        logger.info("get company by id" + id);
         Company company = dao.find(Company.class, id);
         if (company == null) {
             throwError(404);
         }
+        logger.info("get company by id done");
         return Response.status(200).entity(company).build();
     }
 
+    @ValidApp
     @POST
     @Path("login")
-    @ValidApp
     public Response login(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        logger.info("login");
         WebApp webApp = this.getWebAppFromAuthHeader(header);
         String password = Helper.cypher(map.get("password"));
         String email = map.get("email").trim().toLowerCase();
@@ -442,6 +499,7 @@ public class ApiV1 {
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         verifyLogin(company, subscriber, email, ip);
         Object loginObject = getLoginObject(subscriber, webApp.getAppCode());
+        logger.info("login done");
         return Response.ok().entity(loginObject).build();
     }
 
@@ -449,18 +507,22 @@ public class ApiV1 {
     @Path("last-login/subscriber/{id}")
     @UserJwt
     public Response getLastLogin(@PathParam(value = "id") int id) {
+        logger.info("last login");
         String sql = "select b.created from LoginAttempt b where b.subscriberId = :value0 order by b.created desc";
         List<Date> dates = dao.getJPQLParamsMax(Date.class, sql, 1, id);
         verifyObjectsNotEmpty(dates);
         Map<String, Object> map = new HashMap<>();
         map.put("lastLogin", dates.get(0));
+        logger.info("last login done");
         return Response.ok().entity(map).build();
     }
 
+    //ms-sub
     @SubscriberJwt
     @POST
     @Path("search-keyword")
     public Response searchKeyword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
+        logger.info("search keyword");
         SearchKeyword sk = new SearchKeyword();
         sk.setCompanyId((int) map.get("companyId"));
         sk.setSubscriberId((int) map.get("subscriberId"));
@@ -468,13 +530,17 @@ public class ApiV1 {
         sk.setCreated(new Date());
         sk.setFound((boolean) map.get("found"));
         dao.persist(sk);
+        logger.info("search keyword done");
         return Response.ok().build();
     }
 
+
+    //md-sub
     @SubscriberJwt
     @POST
     @Path("replacement-search-keyword")
     public Response searchReplacementKeyword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, Object> map) {
+        logger.info("search replacement keyword");
         SearchReplacementKeyword sk = new SearchReplacementKeyword();
         sk.setCompanyId((int) map.get("companyId"));
         sk.setSubscriberId((int) map.get("subscriberId"));
@@ -482,6 +548,7 @@ public class ApiV1 {
         sk.setCreated(new Date());
         sk.setFound((boolean) map.get("found"));
         dao.persist(sk);
+        logger.info("search replacement keyword done");
         return Response.ok().build();
     }
 
@@ -489,6 +556,7 @@ public class ApiV1 {
     @GET
     @Path("company-summary-report/{id}")
     public Response getCompanySummary(@PathParam(value = "id") int id) {
+        logger.info("company summary report " + id);
         String sql = "select b from SearchKeyword b where b.companyId =:value0 order by b.created desc";
         List<SearchKeyword> kwds = dao.getJPQLParamsMax(SearchKeyword.class, sql, 50, id);
         sql = "select b from SearchReplacementKeyword b where b.companyId =:value0 order by b.created desc";
@@ -521,6 +589,7 @@ public class ApiV1 {
         summary.setTopReplacementsKeywords(replacementKwds);
         summary.setTotalSearches(totalSearches);
         summary.setTotalReplacementSearches(totalReplacementSearches);
+        logger.info("company summary report done");
         return Response.ok().entity(summary).build();
     }
 
@@ -528,6 +597,7 @@ public class ApiV1 {
     @GET
     @Path("summary-report")
     public Response getHomeSummary() {
+        logger.info("summary report home");
         String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(now() as date)";
         int searchKeywordsToday = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from SearchReplacementKeyword b where cast(b.created as date) = cast(now() as date)";
@@ -589,6 +659,7 @@ public class ApiV1 {
         summary.setTopCompanies(topCompaniesIds);
         summary.setMonthlySearches(monthly);
         summary.setReplacementMonthlySearches(replacementMonthly);
+        logger.info("summary report home done");
         return Response.ok().entity(summary).build();
     }
 
@@ -596,40 +667,50 @@ public class ApiV1 {
     @GET
     @Path("verify-search-count/company/{id}")
     public Response verifySearchCount(@PathParam(value = "id") int companyId) {
+        logger.info("verify search count company " + companyId);
         String sql = "select count(*) from SearchKeyword where found = :value0 and companyId = :value1" +
                 " and cast (created as date) = cast (now() as date)";
         Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
         if (number.intValue() >= 10) {
+            logger.info("verify search count 403 done");
             return Response.status(403).build();
         }
+        logger.info("verify search count done");
         return Response.status(201).build();
     }
 
+    //ms-sub
     @SubscriberJwt
     @GET
     @Path("replacement-search-count/company/{id}")
     public Response verifyReplacementSearchCount(@PathParam(value = "id") int companyId) {
+        logger.info("replacement search count " + companyId);
         String sql = "select count(*) from SearchReplacementKeyword where found = :value0 and companyId = :value1";
         Number number = dao.findJPQLParams(Number.class, sql, true, companyId);
         Map<String,Integer> map = new HashMap<>();
         map.put("count", number.intValue());
+        logger.info("replacement ssearch count done");
         return Response.status(200).entity(map).build();
     }
 
+    //ms-sub
     @SubscriberJwt
     @POST
     @Path("hit-search-limit")
     public Response hitLimit(Map<String, Integer> map) {
+        logger.info("hit search limit");
         int companyId = map.get("companyId");
         String sql = "select b from SearchLimit b where b.companyId = :value0 and cast (b.created as date) = cast (now() as date)";
         SearchLimit sl = dao.findJPQLParams(SearchLimit.class, sql, companyId);
         if (sl != null) {
+            logger.info("hit search limit done 409");
             throwError(409);
         }
         sl = new SearchLimit();
         sl.setCompanyId(companyId);
         sl.setCreated(new Date());
         dao.persist(sl);
+        logger.info("hit search limit done");
         return Response.ok().build();
     }
 
@@ -638,6 +719,7 @@ public class ApiV1 {
     @POST
     @Path("search-report/accumulated")
     public Response getSearchReportAccumulated(Map<String, Object> map) {
+        logger.info("search report accumulated");
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -653,17 +735,21 @@ public class ApiV1 {
                 csc.add(sc);
             }
         }
+        logger.info("search report accumulated done");
         return Response.ok().entity(csc).build();
     }
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("pull-chunk-size/company/{id}")
     public Response getChunkSize(@PathParam(value = "id") int companyId){
+        logger.info("pull chunk size " + companyId);
         String sql = "select pull_chunk_size from sub_company where id = " + companyId;
         Number number = dao.findNative(Number.class, sql);
         Map<String,Integer> map = new HashMap<>();
         map.put("chunk", number.intValue());
+        logger.info("pull chunk size done");
         return Response.status(200).entity(map).build();
     }
 
@@ -672,6 +758,7 @@ public class ApiV1 {
     @POST
     @Path("search-report/hit-limit")
     public Response getSearchReportLimit(Map<String, Object> map) {
+        logger.info("search report hit limit");
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -685,6 +772,7 @@ public class ApiV1 {
                 csc.add(counts);
             }
         }
+        logger.info("search report hit limit done");
         return Response.ok().entity(csc).build();
     }
 
@@ -692,6 +780,7 @@ public class ApiV1 {
     @POST
     @Path("search-report")
     public Response getSearchReport(Map<String, Object> map) {
+        logger.info("search report");
         Date from = new Date((long) map.get("from"));
         Date to = new Date((long) map.get("to"));
         Helper h = new Helper();
@@ -710,6 +799,7 @@ public class ApiV1 {
                 }
             }
         }
+        logger.info("search report done");
         return Response.ok().entity(csc).build();
     }
 
@@ -717,6 +807,7 @@ public class ApiV1 {
     @GET
     @Path("search-activity/from/{from}/to/{to}")
     public Response getVendorSearchKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong, @Context UriInfo info) {
+        logger.info("search activity from to");
         Helper h = new Helper();
         String excludeFriday = info.getQueryParameters().getFirst("exclude-friday");
         List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong), excludeFriday != null);
@@ -729,6 +820,7 @@ public class ApiV1 {
             map.put("date", date.getTime());
             kgs.add(map);
         }
+        logger.info("search activity from to done");
         return Response.status(200).entity(kgs).build();
     }
 
@@ -736,6 +828,7 @@ public class ApiV1 {
     @GET
     @Path("search-replacement-activity/from/{from}/to/{to}")
     public Response getVendorSearchReplacementKeywordsDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong, @Context UriInfo info) {
+        logger.info("search replacement activity from to");
         Helper h = new Helper();
         String excludeFriday = info.getQueryParameters().getFirst("exclude-friday");
         List<Date> dates = h.getAllDatesBetween(new Date(fromLong), new Date(toLong), excludeFriday != null);
@@ -748,6 +841,7 @@ public class ApiV1 {
             map.put("date", date.getTime());
             kgs.add(map);
         }
+        logger.info("search replacement activity from to done");
         return Response.status(200).entity(kgs).build();
     }
 
@@ -755,6 +849,7 @@ public class ApiV1 {
     @GET
     @Path("today-search/company")
     public Response getLatestVendorSearchesGroup() {
+        logger.info("today search / company");
         Helper h = new Helper();
         String dateString = h.getDateFormat(new Date(), "yyyy-MM-dd");
         String sql = "select z.*, c.name from" +
@@ -774,24 +869,30 @@ public class ApiV1 {
                 csc.add(sc);
             }
         }
+        logger.info("today search / company done");
         return Response.ok().entity(csc).build();
     }
 
+    //ms-sub
     @GET
     @Path("company-ids/all")
     @UserJwt
     public Response getAllCompanies() {
+        logger.info("company ids / all");
         String sql = "select b.id from Company b order by b.id desc";
         List<Integer> ids = dao.getJPQLParams(Integer.class, sql);
         Map<String, Object> map = new HashMap<>();
         map.put("companyIds", ids);
+        logger.info("company ids / all done");
         return Response.ok().entity(map).build();
     }
 
+    //ms-sub
     @GET
     @Path("companies/ids/{ids}")
     @UserJwt
     public Response getCompanies(@PathParam(value = "ids") String ids) {
+        logger.info("company ids / ids");
         String[] idsArray = ids.split(",");
         StringBuilder sql = new StringBuilder("select * from sub_company where id in (0");
         for (String s : idsArray) {
@@ -799,14 +900,18 @@ public class ApiV1 {
         }
         sql.append(") order by id");
         var companies =  dao.getNative(Company.class, sql.toString());
+        logger.info("company ids / ids done");
         return Response.status(200).entity(companies).build();
     }
 
 
+    //ms-sub
     @POST
     @Path("company-ids/labels")
     @UserJwt
     public Response searchCompaniesWithLabels(List<Label> labels) {
+        logger.info("company ids / labels");
+
         if (labels == null || labels.isEmpty()) {
             return Response.status(400).build();
         }
@@ -817,63 +922,81 @@ public class ApiV1 {
         List<Integer> list = (List<Integer>) dao.getNative(sql);
         Map<String, Object> map = new HashMap<>();
         map.put("companyIds", list);
+        logger.info("company ids / labels done");
         return Response.ok().entity(map).build();
     }
 
+    //ms-sub
     @POST
     @Path("pin-comment")
     @UserJwt
     public Response pinComment(CommentPinned pin) {
+        logger.info("pin comment");
         String sql = "select b from CommentPinned b where b.comment.id = :value0 and b.pinnedBy = :value1";
         List<CommentPinned> check = dao.getJPQLParams(CommentPinned.class, sql, pin.getComment().getId(), pin.getPinnedBy());
         if (!check.isEmpty()) throwError(409);
         pin.setCreated(new Date());
         dao.persist(pin);
+        logger.info("pin comment done");
         return Response.ok().entity(pin).build();
     }
 
+    //ms-sub
     @DELETE
     @Path("pin-comment/{pinId}")
     @UserJwt
     public Response unpin(@PathParam(value = "pinId") int pinId) {
+        logger.info("unpin");
         CommentPinned pinned = dao.find(CommentPinned.class, pinId);
         verifyObjectFound(pinned);
         dao.delete(pinned);
+        logger.info("unpin done");
         return Response.ok().build();
     }
 
+    //ms-sub
     @GET
     @Path("pin-comments/user/{userId}")
     @UserJwt
     public Response getPinnedComments(@PathParam(value = "userId") int userId) {
+        logger.info("pin comment user " + userId);
         String sql = "select b from CommentPinned b where b.pinnedBy = :value0 order by b.created desc";
         List<CommentPinned> pinned = dao.getJPQLParams(CommentPinned.class, sql, userId);
+        logger.info("pin comment user done");
         return Response.ok().entity(pinned).build();
     }
 
+    //ms-sub
     @POST
     @Path("comment")
     @UserJwt
     public Response addComment(Comment comment) {
+        logger.info("comment");
         if (comment.getCompanyId() == 0) throwError(409);
         dao.persist(comment);
+        logger.info("comment done");
         return Response.ok().entity(comment).build();
     }
 
+    //ms-sub
     @DELETE
     @Path("comment/{id}")
     @UserJwt
     public Response deleteComment(@PathParam(value = "id") int id) {
+        logger.info("delete comment");
         Comment comment = dao.find(Comment.class, id);
         comment.setStatus('X');
         dao.update(comment);
+        logger.info("delete comment done");
         return Response.ok().build();
     }
 
+    //ms-sub
     @GET
     @Path("company-ids/not-logged/days/{days}")
     @UserJwt
     public Response searchNotLogged(@PathParam(value = "days") int days) {
+        logger.info("company ids / not logged");
         String sql = "select b.id from Company b where b.id not in (" +
                 " select c.companyId from Subscriber c where c.id in (" +
                 " select d.subscriberId from LoginAttempt d where d.success = :value0" +
@@ -882,24 +1005,30 @@ public class ApiV1 {
         List<Integer> companyIds = dao.getJPQLParams(Integer.class, sql, true, date);
         Map<String, Object> map = new HashMap<>();
         map.put("companyIds", companyIds);
+        logger.info("company ids not logged done");
         return Response.ok().entity(map).build();
     }
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("company-ids/integrated")
     public Response getIntegratedCompanies() {
+        logger.info("company ids integrated");
         String sql = "select b.id from Company b where b.integrated = :value0 order by b.id";
         List<Integer> ints = dao.getJPQLParams(Integer.class, sql, true);
         Map<String, Object> map = new HashMap<>();
         map.put("companyIds", ints);
+        logger.info("company ids integrated done");
         return Response.ok().entity(map).build();
     }
 
+    //ms-sub
     @GET
     @Path("company-ids/search/{query}")
     @UserJwt
     public Response search(@PathParam(value = "query") String query) {
+        logger.info("company ids search ");
         int id = Helper.parseId(query);
         query = "%" + query.toLowerCase().trim() + "%";
         String sql = " select b.id from Company b " +
@@ -912,14 +1041,17 @@ public class ApiV1 {
         List<Integer> ids = dao.getJPQLParams(Integer.class, sql, query, id);
         Map<String, Object> map = new HashMap<>();
         map.put("companyIds", ids);
+        logger.info("company ids search done");
         return Response.ok().entity(map).build();
     }
 
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("company-joined/from/{from}/to/{to}")
     public Response getVendorsJoinedDate(@PathParam(value = "from") long fromLong, @PathParam(value = "to") long toLong) {
+        logger.info("company joined from to");
         Helper h = new Helper();
         Date toDate = new Date(toLong);
         Date fromDate = new Date(fromLong);
@@ -936,12 +1068,14 @@ public class ApiV1 {
             vdg.setTotal(total.intValue());
             vdgs.add(vdg);
         }
+        logger.info("company joined from to done");
         return Response.status(200).entity(vdgs).build();
 
     }
 
 
     private Subscriber updateSubscriptionStatus(Subscriber subscriber) {
+        logger.info("update subscription status");
         Subscription activeSubscription = dao.findTwoConditions(Subscription.class, "companyId", "status", subscriber.getCompanyId(), 'A');
         if (activeSubscription != null) {
             if (activeSubscription.getEndDate().before(new Date())) {
@@ -973,11 +1107,13 @@ public class ApiV1 {
                 }
             }
         }
+        logger.info("update subscription done");
         return subscriber;
     }
 
 
     private Object getLoginObject(Subscriber subscriber, int appCode) {
+        logger.info("get login object");
         subscriber = updateSubscriptionStatus(subscriber);
         if (appCode == 6) {
             CompanyView cview = dao.find(CompanyView.class, subscriber.getCompanyId());
@@ -987,17 +1123,21 @@ public class ApiV1 {
         }
         Company company = dao.find(Company.class, subscriber.getCompanyId());
         String jwt = issueToken(subscriber.getCompanyId(), subscriber.getId(), appCode);
+        logger.info("get login object done");
         return new LoginObject(company, subscriber, jwt);
     }
 
     private String issueToken(int companyId, int userId, int appCode) {
         try {
+            logger.info("issue token");
             Map<String, Object> map = new HashMap<>();
             map.put("typ", 'S');
             map.put("appCode", appCode);
             map.put("comp", companyId);
+            logger.info("issue token done");
             return KeyConstant.issueToken(userId, map);
         } catch (Exception ex) {
+            logger.info("issue token 500");
             throwError(500, "Token issuing error");
             return null;
         }
@@ -1005,15 +1145,19 @@ public class ApiV1 {
 
 
     private void verifyLogin(Company company, Subscriber subscriber, String email, String ip) {
+        logger.info("verify login");
         if(company.getStatus() != 'A' || subscriber.getStatus() != 'A'){
+            logger.info("invalid credentials");
             throwError(404, "Invalid credentials");
         }
         if (subscriber == null) {
+            logger.info("invalid credentials");
             async.createLoginAttempt(email, 0, ip, false);
             throwError(404, "Invalid credentials");
         } else {
             async.createLoginAttempt(email, subscriber.getId(), ip, true);
         }
+        logger.info("verify login done");
     }
 
     private void verifyObjectFound(Object object) {
@@ -1033,22 +1177,27 @@ public class ApiV1 {
         if (list.isEmpty()) throwError(404);
     }
 
+    //ms-sub
     @ValidApp
     @POST
     @Path("reset-password-verify")
     public Response verifyPasswordReset(Map<String, String> map) {
+        logger.info("reset password verify");
         String token = map.get("token");
         String sql = "select b from PasswordReset b where b.token = :value0 and b.status = :value1 and b.expire >= :value2";
         PasswordReset pr = dao.findJPQLParams(PasswordReset.class, sql, token, 'R', new Date());
         verifyObjectFound(pr);
+        logger.info("reset password verify done");
         return Response.status(200).build();
     }
 
 
+    //ms-sub
     @ValidApp
     @PUT
     @Path("reset-password")
     public Response resetPassword(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String, String> map) {
+        logger.info("reset password update");
         WebApp webApp = getWebAppFromAuthHeader(header);
         String token = map.get("token");
         String password = map.get("newPassword");
@@ -1062,13 +1211,16 @@ public class ApiV1 {
         pr.setStatus('V');
         dao.update(pr);
         LoginObject loginObject = (LoginObject) getLoginObject(subscriber, webApp.getAppCode());
+        logger.info("reset password update done");
         return Response.status(200).entity(loginObject).build();
     }
 
+    //ms-sub
     @UserJwt
     @POST
     @Path("generate-password-link")
     public Response generatePasswordRest(Map<String,Object> map){
+        logger.info("generate password link");
         int subscriberId = ((Number) map.get("subscriberId")).intValue();
         String application = (String) map.get("application");
         if(!(application.equals("qvm") || application.equals("qstock")))
@@ -1080,13 +1232,16 @@ public class ApiV1 {
         async.sendEmail(emailModel);
         Map<String,String> newMap = new HashMap<>();
         newMap.put("token", token);
+        logger.info("generate password link done");
         return Response.status(200).entity(newMap).build();
     }
 
+    //ms-sub
     @ValidApp
     @POST
     @Path("password-reset-request")
     public Response requestPasswordReset(Map<String, String> map) {
+        logger.info("password reset request");
         String method = map.get("method");
         String sql = "select b from Subscriber b where ";
         String value = "";
@@ -1103,11 +1258,13 @@ public class ApiV1 {
         String[] values = new String[]{token, subscriber.getName(), "qvm"};
         MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), AppConstants.MESSAGING_PURPOSE_PASS_RESET, values);
         async.sendEmail(emailModel);
+        logger.info("password reset request done");
         return Response.status(200).build();
     }
 
 
     private String createPasswordResetObject(Subscriber subscriber) {
+        logger.info("create password reset object");
         String code = "";
         boolean available = false;
         do {
@@ -1126,15 +1283,19 @@ public class ApiV1 {
         ev.setExpire(Helper.addMinutes(ev.getCreated(), 60 * 24 * 14));
         ev.setStatus('R');
         dao.persist(ev);
+        logger.info("create passsword reset object done");
         return code;
     }
 
 
     private Map<String, Integer> getBasicPlanId() {
+        logger.info("get basic plan id");
         Response r = InternalAppRequester.getSecuredRequest(AppConstants.GET_BASIC_PLAN_ID);
         if (r.getStatus() == 200) {
+            logger.info("get basic plan id done");
             return r.readEntity(Map.class);
         }
+        logger.info("get basic plan id error");
         throwError(500);
         return null;
     }
@@ -1154,12 +1315,14 @@ public class ApiV1 {
         }
     }
 
-
+    //ms-sub
     @POST
     @Path("general-activities")
     @UserJwt
     public Response createGeneralActivities(List<GeneralActivity> activities) {
+        logger.info("create general activities");
         activities.forEach(ga -> dao.persist(ga));
+        logger.info("create general activities done");
         return Response.status(200).build();
     }
 
@@ -1167,62 +1330,81 @@ public class ApiV1 {
     @Path("general-activities")
     @UserJwt
     public Response getGeneralActivities() {
+        logger.info("get general activities");
         List<GeneralActivity> activities = dao.get(GeneralActivity.class);
+        logger.info("get general activities done");
         return Response.status(200).entity(activities).build();
     }
 
+    //ms-sub
     @GET
     @Path("general-roles")
     @UserJwt
     public Response getGeneralRoles() {
+        logger.info("get general role");
         List<GeneralRole> roles = dao.get(GeneralRole.class);
+        logger.info("get general roles done");
         return Response.status(200).entity(roles).build();
     }
 
+    //ms-sub
     @POST
     @Path("general-role")
     @UserJwt
     public Response createGeneralRole(GeneralRole generalRole) {
+        logger.info("create general role");
         dao.persist(generalRole);
+        logger.info("create general role done");
         return Response.status(200).entity(generalRole).build();
     }
 
+    //ms-sub
     @PUT
     @Path("general-role")
     @UserJwt
     public Response updateGeneralRole(GeneralRole generalRole) {
+        logger.info("update general role");
         dao.update(generalRole);
+        logger.info("update general role done");
         return Response.status(200).entity(generalRole).build();
     }
 
     private int getPlanRoleId(int planId, String header) {
+        logger.info("get plan role id");
         Response r = this.getSecuredRequest(AppConstants.getPlanGeneralRoleId(planId), header);
         if (r.getStatus() == 200) {
             Map<String, Integer> map = r.readEntity(Map.class);
+            logger.info("get plan role id done");
             return map.get("generalRoleId");
         }
+        logger.info("get plan role id error");
         return 0;
     }
 
-
+    //ms-sub
     @POST
     @Path("label")
     @UserJwt
     public Response createLabel(Label label) {
+        logger.info("create label");
         label.setCreated(new Date());
         Label check = dao.findCondition(Label.class, "label", label.getLabel());
         if (check != null) {
             throwError(409);
         }
         dao.persist(label);
+        logger.info("create label done");
         return Response.status(200).entity(label).build();
     }
 
+    //ms-subscriber
     @GET
     @Path("labels")
     @UserJwt
     public Response getLabels() {
+        logger.info("get labels");
         List<Label> labels = dao.get(Label.class);
+        logger.info("get labels done");
         return Response.status(200).entity(labels).build();
     }
 
@@ -1232,6 +1414,7 @@ public class ApiV1 {
     @Path("qvm-invoice/{invoiceId}/company/{companyId}")
     @Produces(MediaType.TEXT_HTML)
     public Response getInvoice(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, @PathParam(value = "invoiceId") int salesId, @PathParam(value = "companyId") int companyId) {
+        logger.info("get qvm invoice");
         Subscription subscription = dao.findTwoConditions(Subscription.class, "salesId", "companyId", salesId, companyId);
         Company company = dao.find(Company.class, companyId);
         verifyObjectFound(subscription);
@@ -1240,8 +1423,10 @@ public class ApiV1 {
         Response r = InternalAppRequester.postSecuredRequest(AppConstants.POST_GENERATE_HTML, mm);
         if (r.getStatus() == 200) {
             String body = r.readEntity(String.class);
+            logger.info("get qvm invoice done");
             return Response.ok().entity(body).build();
         }
+        logger.info("get qvm invoice error");
         throwError(404);
         return null;
     }
@@ -1250,6 +1435,7 @@ public class ApiV1 {
     @POST
     @Path("companies/reduced")
     public Response getCompanyReduced(Map<String, Object> map) {
+        logger.info("get company reduced");
         List<Integer> ids = (ArrayList) map.get("companyIds");
         String sql = "select * from sub_company b where b.id in (0";
         for (var id : ids) {
@@ -1257,6 +1443,7 @@ public class ApiV1 {
         }
         sql += ")";
         List<CompanyReduced> companyReducedList = dao.getNative(CompanyReduced.class, sql);
+        logger.info("get company reduced done");
         return Response.ok().entity(companyReducedList).build();
     }
 
@@ -1266,6 +1453,7 @@ public class ApiV1 {
     @Path("api-long-token")
     public Response generateApiLongToken(Map<String, Integer> map) {
         try {
+            logger.info("api link token generate");
             int companyId = map.get("companyId");
             int subscriberId = map.get("subscriberId");
             int duration = map.get("duration");
@@ -1279,6 +1467,7 @@ public class ApiV1 {
             String token = KeyConstant.issueToken(subscriberId, cred, issued, expire);
             MessagingModel emailModel = new MessagingModel(null, AppConstants.ADMIN_EMAIL, AppConstants.MESSAGING_PURPOSE_API_TOKEN, new String[]{token});
             async.sendEmail(emailModel);
+            logger.info("api link token generate done");
             return Response.status(200).build();
         } catch (Exception ex) {
             throwError(500, "Token issuing error");
@@ -1290,6 +1479,7 @@ public class ApiV1 {
     @PUT
     @Path("subscriber")
     public Response editSubscriber(Map<String,Object> map){
+        logger.info("edit subscrriber");
         int id = (int) map.get("id");
         String email = (String) map.get("email");
         String mobile = (String) map.get("mobile");
@@ -1306,6 +1496,7 @@ public class ApiV1 {
             subscriber.setEmail(email.toLowerCase().trim());
             subscriber.setEmailVerified(false);
         }
+        logger.info("edit subscriber done");
         dao.update(subscriber);
         return Response.status(200).build();
     }
@@ -1314,6 +1505,7 @@ public class ApiV1 {
     @POST
     @Path("merge")
     public Response mergeSubscriptions(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, Map<String,Integer> map){
+        logger.info("merge");
         int mainId = map.get("mainId");
         int secId = map.get("secondaryId");
         int createdBy = map.get("createdBy");
@@ -1352,6 +1544,7 @@ public class ApiV1 {
         dao.updateNative(sql2);
         String sql3 = "delete from sub_company where id = " + sec.getId();
         dao.updateNative(sql3);
+        logger.info("merge done");
         return Response.status(200).build();
     }
 
@@ -1360,6 +1553,7 @@ public class ApiV1 {
     @POST
     @Path("subscribe")
     public Response createSubscription(@HeaderParam(HttpHeaders.AUTHORIZATION) String header, SubscribeModel model) {
+        logger.info("subscribe");
         Company company = dao.find(Company.class, model.getCompanyId());
         Subscription futureSubscription = company.getFutureSubscription();
         Subscription premium = new Subscription();
@@ -1394,6 +1588,7 @@ public class ApiV1 {
         dao.update(company);
         Company updated = dao.find(Company.class, company.getId());
         async.sendInvoiceEmail(premium, updated, header);
+        logger.info("subscribe done");
         return Response.ok().entity(updated).build();
     }
 
