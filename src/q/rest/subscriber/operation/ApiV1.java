@@ -66,16 +66,17 @@ public class ApiV1 {
         String code = createVerificationCode();
         SubscriberVerification sv = new SubscriberVerification(sr, model.getCountryId() == 1 ? 'M' : 'E', code, model.getCompanyId());
         dao.persist(sv);
-        if (model.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
-            async.sendSms(smsModel);
-        } else {
+//        if (model.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+//            async.sendSms(smsModel);
+//        } else {
             String[] s = new String[]{model.getName(), sv.getVerificationCode()};
             MessagingModel emailModel = new MessagingModel(null, model.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
-        }
+//        }
         Map<String, String> map = new HashMap<String, String>();
-        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+//        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+        map.put("mode", "email");
         logger.info("additional subscriber request done");
         return Response.status(200).entity(map).build();
     }
@@ -298,15 +299,15 @@ public class ApiV1 {
         String code = createVerificationCode();
         SubscriberVerification sv = new SubscriberVerification(sub, mode, code);
         dao.persist(sv);
-        if (mode == 'E') {
+//        if (mode == 'E') {
             String[] s = new String[]{sub.getName(), sv.getVerificationCode()};
             MessagingModel emailModel = new MessagingModel(null, sub.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
-        }
-        if (mode == 'M') {
-            MessagingModel smsModel = new MessagingModel(sub.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
-            async.sendSms(smsModel);
-        }
+//        }
+//        if (mode == 'M') {
+//            MessagingModel smsModel = new MessagingModel(sub.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+//            async.sendSms(smsModel);
+//        }
         logger.info("request verify done");
         return Response.status(200).build();
     }
@@ -352,13 +353,13 @@ public class ApiV1 {
         Subscriber senderSubscriber = dao.find(Subscriber.class, senderId);
         Company senderCompany = dao.find(Company.class, senderSubscriber.getCompanyId());
         Subscriber admin = receiverCompany.getAdminSubscriber();
-        if (receiverCompany.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(receiverCompany.getAdminSubscriber().getMobile(), null, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName());
-            async.sendSms(smsModel);
-        } else {
+//        if (receiverCompany.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(receiverCompany.getAdminSubscriber().getMobile(), null, AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, senderCompany.getName());
+//            async.sendSms(smsModel);
+//        } else {
             MessagingModel emailModel = new MessagingModel(null, receiverCompany.getAdminSubscriber().getEmail(), AppConstants.MESSAGING_PURPOSE_NEW_PURCHASE_ORDER, new String[]{admin.getName(), senderCompany.getName()});
             async.sendEmail(emailModel);
-        }
+//        }
         logger.info("send purchase order done");
         return Response.status(200).build();
     }
@@ -379,13 +380,13 @@ public class ApiV1 {
             purpose = AppConstants.MESSAGING_PURPOSE_ACCEPT_PURCHASE_ORDER;
         else if (status.equals("Refused"))
             purpose = AppConstants.MESSAGING_PURPOSE_REFUSE_PURCHASE_ORDER;
-        if (senderCompany.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(subscriber.getMobile(), null, purpose, receiverCompany.getName());
-            async.sendSms(smsModel);
-        } else {
+//        if (senderCompany.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(subscriber.getMobile(), null, purpose, receiverCompany.getName());
+//            async.sendSms(smsModel);
+//        } else {
             MessagingModel emailModel = new MessagingModel(null, subscriber.getEmail(), purpose, new String[]{subscriber.getName(), receiverCompany.getName()});
             async.sendEmail(emailModel);
-        }
+//        }
         logger.info("update purchase order done");
         return Response.status(200).build();
     }
@@ -405,14 +406,14 @@ public class ApiV1 {
         String code = createVerificationCode();
         SubscriberVerification sv = new SubscriberVerification(signupRequest, sm.getCountryId() == 1 ? 'M' : 'E', code);
         dao.persist(sv);
-        if (sm.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(sm.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
-            async.sendSms(smsModel);
-        } else {
+//        if (sm.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(sm.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, sv.getVerificationCode());
+//            async.sendSms(smsModel);
+//        } else {
             String[] s = new String[]{sm.getName(), sv.getVerificationCode()};
             MessagingModel emailModel = new MessagingModel(null, sm.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
-        }
+//        }
         logger.info("signup request done");
         return Response.status(200).build();
     }
@@ -503,6 +504,7 @@ public class ApiV1 {
         return Response.ok().entity(loginObject).build();
     }
 
+    //ms-sub
     @GET
     @Path("last-login/subscriber/{id}")
     @UserJwt
@@ -593,6 +595,8 @@ public class ApiV1 {
         return Response.ok().entity(summary).build();
     }
 
+
+    //ms-sub
     @UserJwt
     @GET
     @Path("summary-report")
@@ -600,7 +604,7 @@ public class ApiV1 {
         logger.info("summary report home");
         String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(now() as date)";
         int searchKeywordsToday = dao.findJPQLParams(Number.class, sql).intValue();
-        sql = "select count(*) from SearchReplacementKeyword b where cast(b.created as date) = cast(now() as date)";
+        sql = "select count(*) from SearchReplacementKeyword b where castcompany-summary-report(b.created as date) = cast(now() as date)";
         int searchReplacementsToday = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from Company c";
         int totalCompanies = dao.findJPQLParams(Number.class, sql).intValue();
@@ -803,6 +807,8 @@ public class ApiV1 {
         return Response.ok().entity(csc).build();
     }
 
+
+    //ms-sub
     @UserJwt
     @GET
     @Path("search-activity/from/{from}/to/{to}")
@@ -824,6 +830,7 @@ public class ApiV1 {
         return Response.status(200).entity(kgs).build();
     }
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("search-replacement-activity/from/{from}/to/{to}")
@@ -845,6 +852,7 @@ public class ApiV1 {
         return Response.status(200).entity(kgs).build();
     }
 
+    //ms-sub
     @UserJwt
     @GET
     @Path("today-search/company")
@@ -1326,6 +1334,8 @@ public class ApiV1 {
         return Response.status(200).build();
     }
 
+
+    //ms-sub
     @GET
     @Path("general-activities")
     @UserJwt
@@ -1475,6 +1485,7 @@ public class ApiV1 {
         }
     }
 
+    //ms-sub
     @UserJwt
     @PUT
     @Path("subscriber")

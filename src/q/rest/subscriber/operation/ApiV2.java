@@ -327,16 +327,17 @@ public class ApiV2 {
         SignupRequest signupRequest = daoApi.createAdditionalSubscriberSignupRequest(model, companyId, subscriberId);
         String code = daoApi.createAndGetVerificationCode(signupRequest, model.getCountryId(), model.getCompanyId());
 
-        if (model.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, code);
-            async.sendSms(smsModel);
-        } else {
+//        if (model.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(model.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, code);
+//            async.sendSms(smsModel);
+//        } else {
             String[] s = new String[]{model.getName(), code};
             MessagingModel emailModel = new MessagingModel(null, model.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
-        }
+//        }
         Map<String, String> map = new HashMap<String, String>();
-        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+//        map.put("mode", model.getCountryId() == 1 ? "mobile" : "email");
+        map.put("mode", "email");
         return Response.status(200).entity(map).build();
     }
 
@@ -609,14 +610,14 @@ public class ApiV2 {
     }
 
     private void sendMessagingNotification(SignupModel sm, String code){
-        if (sm.getCountryId() == 1) {
-            MessagingModel smsModel = new MessagingModel(sm.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, code);
-            async.sendSms(smsModel);
-        } else {
+//        if (sm.getCountryId() == 1) {
+//            MessagingModel smsModel = new MessagingModel(sm.getMobile(), null, AppConstants.MESSAGING_PURPOSE_SIGNUP, code);
+//            async.sendSms(smsModel);
+//        } else {
             String[] s = new String[]{sm.getName(), code};
             MessagingModel emailModel = new MessagingModel(null, sm.getEmail(), AppConstants.MESSAGING_PURPOSE_SIGNUP, s);
             async.sendEmail(emailModel);
-        }
+//        }
     }
 
 
