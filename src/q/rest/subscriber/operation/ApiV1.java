@@ -604,7 +604,7 @@ public class ApiV1 {
         logger.info("summary report home");
         String sql = "select count(*) from SearchKeyword b where cast(b.created as date) = cast(now() as date)";
         int searchKeywordsToday = dao.findJPQLParams(Number.class, sql).intValue();
-        sql = "select count(*) from SearchReplacementKeyword b where castcompany-summary-report(b.created as date) = cast(now() as date)";
+        sql = "select count(*) from SearchReplacementKeyword b where company-summary-report cast(b.created as date) = cast(now() as date)";
         int searchReplacementsToday = dao.findJPQLParams(Number.class, sql).intValue();
         sql = "select count(*) from Company c";
         int totalCompanies = dao.findJPQLParams(Number.class, sql).intValue();
